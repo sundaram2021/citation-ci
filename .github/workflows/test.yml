@@ -1,0 +1,25 @@
+name: Test Citation CI
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run demo
+      - name: Start action smoke fixture
+        run: |
+          node --input-type=module -e "import {createServer} from 'node:http'; for (const port of [43111,43112]) createServer((req,res)=>res.end('docs')).listen(port,'127.0.0.1')" &
+          for i in {1..20}; do curl -fsS http://127.0.0.1:43112/ && break; sleep 0.2; done
+          echo 'http://127.0.0.1:43111/guide' > "$RUNNER_TEMP/citations.txt"
+      - uses: ./
+        with:
+          production: http://127.0.0.1:43111
+          preview: http://127.0.0.1:43112
+          file: ${{ runner.temp }}/citations.txt
