@@ -67,8 +67,8 @@ Exit code **0** means the comparison completed without a new regression. **1** m
 ### What the checker can establish
 
 - A 404, 410, redirect loop, or missing redirect destination breaks the citation.
-- A deep link redirected to the homepage is flagged. A link without a fragment redirected to an ancestor section such as `/docs` is also flagged. This is a review heuristic for pages that may have lost their specific answer.
-- HTML fragment checks use parsed, server-returned HTML. Redirects inherit the original fragment unless the destination supplies another. Client-rendered anchors can require review.
+- A deep link redirected to the homepage without a section is flagged. A redirect to a named homepage section must resolve to an existing anchor. A link without a fragment redirected to an ancestor section such as `/docs` is also flagged. This is a review heuristic for pages that may have lost their specific answer.
+- HTML fragment checks use parsed, server-returned HTML. Redirects inherit the original fragment unless the destination supplies another. An explicitly cleared anchor is reported as broken. Client-rendered anchors can require review.
 - Timeouts, access restrictions, server errors, cross-origin redirects, text fragments, and oversized HTML produce an inconclusive result. Use the final production hostname as the configured origin.
 - Each pair checks URL health. A page that serves unrelated content with HTTP 200 at its original path can pass. AI ranking, answer accuracy, and future citations need separate measurement.
 

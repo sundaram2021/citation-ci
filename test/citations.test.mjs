@@ -13,6 +13,9 @@ before(async () => {
   dir = await mkdtemp(join(tmpdir(), 'ci-test-'));
   server = createServer((req, res) => {
     switch (req.url) {
+      case '/canonical/': return res.writeHead(308, {location:'/canonical'}).end();
+      case '/home-section': return res.writeHead(308, {location:'/#okay'}).end();
+      case '/lost-fragment': return res.writeHead(308, {location:'/docs#'}).end();
       case '/dead': return res.writeHead(410).end();
       case '/blocked': return res.writeHead(403).end();
       case '/docs/intro': return res.writeHead(308, {location:'/docs'}).end();
@@ -30,6 +33,7 @@ before(async () => {
 });
 after(async () => { server.close(); await rm(dir, {recursive:true, force:true}); });
 for (const [path, state] of [
+  ['/canonical/','ok'], ['/docs/','ok'], ['/home-section#okay','ok'], ['/lost-fragment#okay','broken'],
   ['/docs','ok'], ['/docs/intro','broken'], ['/docs/intro#okay','ok'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'],
   ['/move#okay','ok'], ['/move#gone','broken'], ['/new-id#gone','ok'], ['/docs#fake','broken'],
   ['/docs#a%26b','ok'], ['/loop','broken'], ['/external','unknown'], ['/docs#:~:text=Docs','unknown']

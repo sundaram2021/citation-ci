@@ -69,11 +69,13 @@ export async function inspect(citation: URL, origin: URL): Promise<Finding> {
         if ([404, 410].includes(res.status))
           return { state: 'broken', detail: 'HTTP ' + res.status };
         if (!res.ok) return { state: 'unknown', detail: 'HTTP ' + res.status };
-        if (current.pathname === '/' && citation.pathname !== '/')
+        if (!current.hash && current.pathname === '/' && citation.pathname !== '/')
           return { state: 'broken', detail: 'redirects to homepage' };
         const landedPath = current.pathname.replace(/\/+$/, '');
-        if (!current.hash && landedPath && citation.pathname.startsWith(landedPath + '/'))
+        const citedPath = citation.pathname.replace(/\/+$/, '');
+        if (!current.hash && landedPath && citedPath.startsWith(landedPath + '/'))
           return { state: 'broken', detail: 'redirects to a parent section: ' + landedPath };
+        if (citation.hash && !current.hash) return { state: 'broken', detail: 'redirect discards cited anchor' };
         if (current.hash) {
           if (!/^text\/html\b/i.test(res.headers.get('content-type') ?? '') ||
               current.hash.includes(':~:'))
