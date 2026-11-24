@@ -40,6 +40,14 @@ for (const [path, state] of [
 ]) {
   test('inspect ' + path, async () => assert.equal((await inspect(new URL(path, origin), origin)).state, state));
 }
+for (const status of [204, 205]) {
+  test(`HTTP ${status} on preview regresses a working document`, async t => {
+    const url = new URL('/docs', origin);
+    const live = await inspect(url, origin);
+    t.mock.method(globalThis, 'fetch', async () => new Response(null, {status}));
+    assert.equal(verdict(live, await inspect(url, origin)), 'regression');
+  });
+}
 test('baseline determines whether a failure is new', () => {
   for (const [a,b,result] of [['ok','broken','regression'],['broken','broken','pre-existing'],
     ['broken','ok','fixed'],['unknown','ok','inconclusive'],['ok','unknown','inconclusive']]) {
@@ -68,6 +76,16 @@ test('multiple anchors reuse one document request and get independent verdicts',
   const rows = await inspectDocument(urls, origin);
   assert.equal(get.mock.callCount(), 1);
   assert.deepEqual(rows.map(row => row.state), ['ok','ok','broken','unknown','unknown']);
+});
+
+test('anchors use the HTTP charset; an unsupported charset is inconclusive', async t => {
+  let charset = 'windows-1252';
+  t.mock.method(globalThis, 'fetch', async () => new Response(Buffer.from('<h1 id="café">Guide</h1>', 'latin1'),
+    {headers: {'content-type': `text/html; charset="${charset}"`}}));
+  const url = new URL('/guide#caf%C3%A9', origin);
+  assert.equal((await inspect(url, origin)).state, 'ok');
+  charset = 'unsupported-encoding';
+  assert.equal((await inspect(url, origin)).state, 'unknown');
 });
 
 test('an oversized anchored response preserves the unanchored verdict', async t => {

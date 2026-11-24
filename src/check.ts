@@ -1,3 +1,4 @@
+import { MIMEType } from 'node:util';
 import { parse } from 'parse5';
 import type { DefaultTreeAdapterTypes } from 'parse5';
 
@@ -41,7 +42,8 @@ async function readHtml(res: Response) {
       if (size > 2 * 1024 * 1024) throw new Error('HTML exceeds 2 MiB');
       chunks.push(value);
     }
-    return Buffer.concat(chunks).toString('utf8');
+    const charset = new MIMEType(res.headers.get('content-type')!).params.get('charset') ?? 'utf-8';
+    return new TextDecoder(charset, { fatal: true }).decode(Buffer.concat(chunks));
   } finally {
     await reader.cancel();
   }
@@ -78,7 +80,7 @@ export async function inspectDocument(citations: URL[], origin: URL): Promise<Fi
           current = next;
           continue;
         }
-        if ([404, 410].includes(res.status)) return all('broken', 'HTTP ' + res.status);
+        if ([204, 205, 404, 410].includes(res.status)) return all('broken', 'HTTP ' + res.status);
         if (!res.ok) return all('unknown', 'HTTP ' + res.status);
         const landedPath = current.pathname.replace(/\/+$/, '');
         const citedPath = source.pathname.replace(/\/+$/, '');

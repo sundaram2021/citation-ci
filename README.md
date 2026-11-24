@@ -45,7 +45,7 @@ Add the step below to your existing trusted deployment job **after the preview f
 
 ```yaml
 - name: Check AI citations on this preview
-  uses: sundaram2021/citation-ci@main
+  uses: sundaram2021/citation-ci@7e406423e33e011b145c84af61d5c9545e6ab7dc
   with:
     production: ${{ vars.DOCS_PRODUCTION_ORIGIN }}
     preview: ${{ steps.deploy.outputs.url }}
@@ -70,9 +70,10 @@ Exit code **0** means the comparison completed without a new regression. **1** m
 
 ### What the checker can establish
 
-- A 404, 410, redirect loop, or missing redirect destination breaks the citation.
+- A 204 or 205 serves no document. These responses, a 404 or 410, a redirect loop, or a missing redirect destination break the citation.
 - A deep link redirected to the homepage without a section is flagged. A redirect to a named homepage section must resolve to an existing anchor. A link without a fragment redirected to an ancestor section such as `/docs` is also flagged. This is a review heuristic for pages that may have lost their specific answer.
 - HTML fragment checks use parsed, server-returned HTML. Redirects inherit the original fragment unless the destination supplies another. An explicitly cleared anchor is reported as broken. Client-rendered anchors can require review.
+- The checker decodes HTML using the HTTP charset, defaulting to UTF-8. If the encoding is unsupported or decoding fails, anchors that need the HTML are inconclusive.
 - Timeouts, access restrictions, server errors, cross-origin redirects, text fragments, and oversized HTML produce an inconclusive result. Use the final production hostname as the configured origin.
 - Each pair checks URL health. A page that serves unrelated content with HTTP 200 at its original path can pass. AI ranking, answer accuracy, and future citations need separate measurement.
 

@@ -37,8 +37,10 @@ jobs:
       - name: Assert failure and restore the cited section
         env:
           OUTCOME: ${{ steps.broken.outcome }}
+          EXIT_CODE: ${{ steps.broken.outputs.exit-code }}
         run: |
           test "$OUTCOME" = failure
+          test "$EXIT_CODE" = 1
           cp "$RUNNER_TEMP/live/auth.html" "$RUNNER_TEMP/preview/auth.html"
       - name: Check repaired preview
         uses: ./

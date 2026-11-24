@@ -25,10 +25,13 @@ jobs:
           production: https://kubernetes.io
           preview: https://deploy-preview-59246--kubernetes-io-main-staging.netlify.app
           file: ${{ runner.temp }}/citations.txt
+      # The pinned release above predates the exit-code output. Exercise the
+      # triggering revision for the negative check so it can assert the verdict.
+      - uses: actions/checkout@v4
       - name: Compare production with the archived v1.32 site
         id: archive
         continue-on-error: true
-        uses: sundaram2021/citation-ci@5b1ba905b1757807553864321bb20445553c826d
+        uses: ./
         with:
           production: https://kubernetes.io
           preview: https://v1-32.docs.kubernetes.io
@@ -36,4 +39,5 @@ jobs:
       - name: Assert the archived site fails the check
         env:
           ARCHIVE_RESULT: ${{ steps.archive.outcome }}
-        run: test "$ARCHIVE_RESULT" = failure
+          EXIT_CODE: ${{ steps.archive.outputs.exit-code }}
+        run: test "$ARCHIVE_RESULT" = failure && test "$EXIT_CODE" = 1
