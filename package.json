@@ -1,0 +1,19 @@
+{
+  "name": "citation-ci",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Check AI-cited links on a deployment preview before merging.",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "check": "node src/cli.ts",
+    "test": "node --test test/*.test.mjs",
+    "demo": "node examples/demo.mjs"
+  },
+  "dependencies": {
+    "csv-parse": "5.6.0",
+    "parse5": "7.3.0"
+  }
+}
