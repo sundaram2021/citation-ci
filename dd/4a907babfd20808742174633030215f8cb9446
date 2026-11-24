@@ -1,0 +1,32 @@
+action.yml
+  s_feefab37bca6c7::t_7693b2784bc18f 13-16,27,35-38
+.github/workflows/test.yml
+  s_feefab37bca6c7::t_7693b2784bc18f 40,43
+src/check.ts
+  s_feefab37bca6c7::t_d010784944f2c5 1,45-46
+  s_feefab37bca6c7::t_bded57aa9c8d1b 83
+test/citations.test.mjs
+  s_feefab37bca6c7::t_bded57aa9c8d1b 43-48
+  s_feefab37bca6c7::t_d010784944f2c5 81-90
+  s_feefab37bca6c7::t_c22480e3f3a53c 49-50
+README.md
+  s_feefab37bca6c7::t_486ffa8910bdb7 73,76
+.github/workflows/verify-published.yml
+  s_feefab37bca6c7::t_7693b2784bc18f 28-30,34,42-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd4a907babfd20808742174633030215f8cb9446",
+  "prompts": {},
+  "sessions": {
+    "s_feefab37bca6c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_df1ff1721ffeSemEQ3vPC0eRui",
+        "model": "unknown"
+      },
+      "human_author": "Sundaram Kumar Jha <jhasundaram@outlook.com>"
+    }
+  }
+}
