@@ -1,0 +1,22 @@
+README.md
+  s_feefab37bca6c7::t_279b43d8e12d02 48
+test/citations.test.mjs
+  s_feefab37bca6c7::t_279b43d8e12d02 71-76
+  s_feefab37bca6c7::t_41d9a3d4f1f9c0 77-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bb9467f5c53ddedf1c6b5ecc588153d1e13291fc",
+  "prompts": {},
+  "sessions": {
+    "s_feefab37bca6c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_df1ff1721ffeSemEQ3vPC0eRui",
+        "model": "unknown"
+      },
+      "human_author": "Sundaram Kumar Jha <jhasundaram@outlook.com>"
+    }
+  }
+}
