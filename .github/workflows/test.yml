@@ -14,12 +14,34 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run demo
-      - name: Start action smoke fixture
+      - name: Start production and preview fixtures
+        shell: bash
         run: |
-          node --input-type=module -e "import {createServer} from 'node:http'; for (const port of [43111,43112]) createServer((req,res)=>res.end('docs')).listen(port,'127.0.0.1')" &
-          for i in {1..20}; do curl -fsS http://127.0.0.1:43112/ && break; sleep 0.2; done
-          echo 'http://127.0.0.1:43111/guide' > "$RUNNER_TEMP/citations.txt"
-      - uses: ./
+          mkdir -p "$RUNNER_TEMP/live" "$RUNNER_TEMP/preview"
+          printf '<h1 id="keys">Create an API key</h1>' > "$RUNNER_TEMP/live/auth.html"
+          printf '<h1>Authentication</h1>' > "$RUNNER_TEMP/preview/auth.html"
+          python3 -m http.server 43111 --bind 127.0.0.1 --directory "$RUNNER_TEMP/live" > "$RUNNER_TEMP/live.log" 2>&1 &
+          python3 -m http.server 43112 --bind 127.0.0.1 --directory "$RUNNER_TEMP/preview" > "$RUNNER_TEMP/preview.log" 2>&1 &
+          for port in 43111 43112; do
+            curl --silent --show-error --fail --retry 8 --retry-connrefused "http://127.0.0.1:$port/auth.html" > /dev/null
+          done
+          printf 'http://127.0.0.1:43111/auth.html#keys\n' > "$RUNNER_TEMP/citations.txt"
+      - name: Check preview with missing anchor
+        id: broken
+        continue-on-error: true
+        uses: ./
+        with:
+          production: http://127.0.0.1:43111
+          preview: http://127.0.0.1:43112
+          file: ${{ runner.temp }}/citations.txt
+      - name: Assert failure and restore the cited section
+        env:
+          OUTCOME: ${{ steps.broken.outcome }}
+        run: |
+          test "$OUTCOME" = failure
+          cp "$RUNNER_TEMP/live/auth.html" "$RUNNER_TEMP/preview/auth.html"
+      - name: Check repaired preview
+        uses: ./
         with:
           production: http://127.0.0.1:43111
           preview: http://127.0.0.1:43112

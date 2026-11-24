@@ -16,7 +16,7 @@ npm run demo
 The demo starts two temporary local sites and uses one synthetic citation. On its first run the preview redirects the guide to the homepage. The second run corrects the redirect and preserves the section.
 
 ```text
-[regression]  /docs/auth#keys  | live: HTTP 200  | preview: redirects to homepage  | citations: 1 example
+[regression]  /docs/auth#keys  | live: HTTP 200  | preview: missing HTML anchor  | citations: 1 example
 [pass]  /docs/auth#keys  | live: HTTP 200  | preview: HTTP 200  | citations: 1 example
 ```
 
@@ -81,4 +81,4 @@ npm test
 npm run demo
 ```
 
-The test suite uses loopback HTTP fixtures. CI also invokes the composite action against a pair of local sites.
+The test suite uses loopback HTTP fixtures. CI runs the composite action against two HTTP fixtures, verifies that removing the cited section fails the check, then restores the section and requires the check to pass.
