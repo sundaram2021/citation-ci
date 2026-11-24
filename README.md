@@ -45,7 +45,7 @@ Add the step below to your existing trusted deployment job **after the preview f
 
 ```yaml
 - name: Check AI citations on this preview
-  uses: sundaram2021/citation-ci@7e406423e33e011b145c84af61d5c9545e6ab7dc
+  uses: sundaram2021/citation-ci@dd4a907babfd20808742174633030215f8cb9446
   with:
     production: ${{ vars.DOCS_PRODUCTION_ORIGIN }}
     preview: ${{ steps.deploy.outputs.url }}

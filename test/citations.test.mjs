@@ -68,6 +68,14 @@ test('file import rejects accidental off-site targets and empty lists', async ()
   }
 });
 
+test('CLI requires a citation file before checking destinations', async () => {
+  const {spawnSync} = await import('node:child_process');
+  const result = spawnSync(process.execPath, ['src/cli.ts', '--production', origin.origin,
+    '--preview', 'http://localhost:1'], {encoding: 'utf8'});
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /--file citations\.csv/);
+});
+
 test('multiple anchors reuse one document request and get independent verdicts', async t => {
   const {inspectDocument} = await import('../src/check.ts');
   const get = t.mock.method(globalThis, 'fetch', async () => new Response(
