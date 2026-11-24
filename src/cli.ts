@@ -29,8 +29,8 @@ async function main() {
   const regressions = rows.filter(row => row.verdict === 'regression').length;
   const unknown = rows.filter(row => row.verdict === 'inconclusive').length;
   const summary = rows.length + ' checked, ' + regressions + ' new regressions, ' + unknown + ' inconclusive';
-  const lines = rows.map(row => JSON.stringify(row.verdict + '  ' + row.path + '  | live: ' + row.production +
-    '  | preview: ' + row.preview + '  | citations: ' + row.count + ' ' + row.engines.join(', ')));
+  const lines = rows.map(row => ('[' + row.verdict + ']' + '  ' + row.path + '  | live: ' + row.production +
+    '  | preview: ' + row.preview + '  | citations: ' + row.count + ' ' + row.engines.join(', ')).trimEnd().replace(/[\u0000-\u001f\u007f]/g, ' '));
   const report = 'Citation CI: ' + summary + '\n' + lines.join('\n');
   console.log(values.json ? JSON.stringify({ summary, rows }, null, 2) : report);
   if (process.env.GITHUB_STEP_SUMMARY) {

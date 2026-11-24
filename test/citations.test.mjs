@@ -15,6 +15,7 @@ before(async () => {
     switch (req.url) {
       case '/dead': return res.writeHead(410).end();
       case '/blocked': return res.writeHead(403).end();
+      case '/docs/intro': return res.writeHead(308, {location:'/docs'}).end();
       case '/home': return res.writeHead(301, {location:'/'}).end();
       case '/move': return res.writeHead(308, {location:'/docs'}).end();
       case '/new-id': return res.writeHead(308, {location:'/docs#okay'}).end();
@@ -29,7 +30,7 @@ before(async () => {
 });
 after(async () => { server.close(); await rm(dir, {recursive:true, force:true}); });
 for (const [path, state] of [
-  ['/docs','ok'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'],
+  ['/docs','ok'], ['/docs/intro','broken'], ['/docs/intro#okay','ok'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'],
   ['/move#okay','ok'], ['/move#gone','broken'], ['/new-id#gone','ok'], ['/docs#fake','broken'],
   ['/docs#a%26b','ok'], ['/loop','broken'], ['/external','unknown'], ['/docs#:~:text=Docs','unknown']
 ]) {

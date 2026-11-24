@@ -19,7 +19,7 @@ function hasAnchor(html: string, id: string) {
     const node = stack.pop()!;
     if ('attrs' in node && node.attrs.some(attr => attr.value === id &&
         (attr.name === 'id' || (node.tagName === 'a' && attr.name === 'name')))) return true;
-    if ('childNodes' in node) stack.push(...node.childNodes);
+    if ('childNodes' in node) for (const child of node.childNodes) stack.push(child);
   }
   return false;
 }
@@ -71,6 +71,9 @@ export async function inspect(citation: URL, origin: URL): Promise<Finding> {
         if (!res.ok) return { state: 'unknown', detail: 'HTTP ' + res.status };
         if (current.pathname === '/' && citation.pathname !== '/')
           return { state: 'broken', detail: 'redirects to homepage' };
+        const landedPath = current.pathname.replace(/\/+$/, '');
+        if (!current.hash && landedPath && citation.pathname.startsWith(landedPath + '/'))
+          return { state: 'broken', detail: 'redirects to a parent section: ' + landedPath };
         if (current.hash) {
           if (!/^text\/html\b/i.test(res.headers.get('content-type') ?? '') ||
               current.hash.includes(':~:'))
