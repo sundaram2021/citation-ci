@@ -1,0 +1,30 @@
+name: Citation CI
+description: Compare AI-cited URLs on production and a deployment preview
+inputs:
+  production:
+    description: Production origin that owns the citations
+    required: true
+  preview:
+    description: Preview origin for this exact revision
+    required: true
+  file:
+    description: CSV or newline-delimited inventory in the caller workspace
+    required: true
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '24'
+    - name: Install pinned checker dependencies
+      shell: bash
+      run: npm ci --prefix "$GITHUB_ACTION_PATH" --ignore-scripts --no-audit --no-fund
+    - name: Compare citation destinations
+      shell: bash
+      env:
+        CITATION_PRODUCTION: ${{ inputs.production }}
+        CITATION_PREVIEW: ${{ inputs.preview }}
+        CITATION_FILE: ${{ inputs.file }}
+      run: |
+        args=(--production "$CITATION_PRODUCTION" --preview "$CITATION_PREVIEW" --file "$CITATION_FILE")
+        node "$GITHUB_ACTION_PATH/src/cli.ts" "${args[@]}"
