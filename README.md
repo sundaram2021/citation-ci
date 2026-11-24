@@ -4,6 +4,8 @@ Catch a docs change that breaks a link someone already got from an AI answer. Ci
 
 A docs migration can send `/docs/auth#keys` to the homepage and still return HTTP 200. Citation CI shows the reviewer which destination changed and how many citation observations led there.
 
+[Verification report with GitHub Actions logs](docs/verification.md)
+
 ## Try it in a minute
 
 Requires Node.js 24 or later and npm. From a checkout:
