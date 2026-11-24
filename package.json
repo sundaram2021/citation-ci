@@ -10,10 +10,15 @@
   "scripts": {
     "check": "node src/cli.ts",
     "test": "node --test test/*.test.mjs",
-    "demo": "node examples/demo.mjs"
+    "demo": "node examples/demo.mjs",
+    "typecheck": "tsc"
   },
   "dependencies": {
     "csv-parse": "5.6.0",
     "parse5": "7.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "typescript": "5.9.3"
   }
 }

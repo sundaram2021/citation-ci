@@ -18,7 +18,7 @@ runs:
         node-version: '24'
     - name: Install pinned checker dependencies
       shell: bash
-      run: npm ci --prefix "$GITHUB_ACTION_PATH" --ignore-scripts --no-audit --no-fund
+      run: npm ci --prefix "$GITHUB_ACTION_PATH" --omit=dev --ignore-scripts --no-audit --no-fund
     - name: Compare citation destinations
       shell: bash
       env:

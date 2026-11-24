@@ -16,13 +16,14 @@ async function main() {
   const preview = site(values.preview);
   if (production.origin === preview.origin) throw new Error('Choose distinct production and preview origins');
   const citations = await inventory(production, values.file);
-  const rows = [];
+  const rows: { path: string; count: number; engines: string[]; verdict: ReturnType<typeof verdict>;
+    production: string; preview: string }[] = [];
   for (let i = 0; i < citations.length; i += 4) {
     const chunk = await Promise.all(citations.slice(i, i + 4).map(async citation => {
       const [live, next] = await Promise.all([inspect(citation.url, production), inspect(citation.url, preview)]);
       const path = citation.url.pathname + (citation.url.search ? '?[redacted]' : '') + citation.url.hash;
       return { path, count: citation.count, engines: [...citation.engines].sort(), verdict: verdict(live, next),
-        production: live.detail, preview: next.detail };
+        production: live.detail, preview: next.detail } as const;
     }));
     rows.push(...chunk);
   }
