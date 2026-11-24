@@ -1,0 +1,39 @@
+name: Published Action on public Kubernetes docs
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/verify-published.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Write the three public documentation links
+        shell: bash
+        run: |
+          cat > "$RUNNER_TEMP/citations.txt" <<'URLS'
+          https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-restart-rules
+          https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
+          https://kubernetes.io/docs/concepts/workloads/pods/sidecar-containers/
+          URLS
+      - name: Compare production with the Netlify deploy for Kubernetes website PR 59246
+        uses: sundaram2021/citation-ci@5b1ba905b1757807553864321bb20445553c826d
+        with:
+          production: https://kubernetes.io
+          preview: https://deploy-preview-59246--kubernetes-io-main-staging.netlify.app
+          file: ${{ runner.temp }}/citations.txt
+      - name: Compare production with the archived v1.32 site
+        id: archive
+        continue-on-error: true
+        uses: sundaram2021/citation-ci@5b1ba905b1757807553864321bb20445553c826d
+        with:
+          production: https://kubernetes.io
+          preview: https://v1-32.docs.kubernetes.io
+          file: ${{ runner.temp }}/citations.txt
+      - name: Assert the archived site fails the check
+        env:
+          ARCHIVE_RESULT: ${{ steps.archive.outcome }}
+        run: test "$ARCHIVE_RESULT" = failure
