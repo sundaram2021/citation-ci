@@ -19,7 +19,7 @@ export async function inventory(site: URL, file: string): Promise<Citation[]> {
   }
   const data = await readFile(file, 'utf8');
   if (file.toLowerCase().endsWith('.csv')) {
-    const rows = parse(data, { bom: true, columns: true, skip_empty_lines: true, trim: true });
+    const rows = parse<{ url: string; engine?: string; count?: string }>(data, { bom: true, columns: true, skip_empty_lines: true, trim: true });
     for (const row of rows) add(row.url, row.engine, Number(row.count || 1));
   } else {
     for (const line of data.split(/\r?\n/)) if (line.trim()) add(line.trim());
