@@ -13,15 +13,19 @@ export function site(value: string): URL {
   return url;
 }
 
-function hasAnchor(html: string, id: string) {
+function anchorIds(html: string) {
+  const ids = new Set<string>();
   const stack: DefaultTreeAdapterTypes.Node[] = [parse(html)];
   while (stack.length) {
     const node = stack.pop()!;
-    if ('attrs' in node && node.attrs.some(attr => attr.value === id &&
-        (attr.name === 'id' || (node.tagName === 'a' && attr.name === 'name')))) return true;
+    if ('attrs' in node) {
+      for (const attr of node.attrs) {
+        if (attr.name === 'id' || (node.tagName === 'a' && attr.name === 'name')) ids.add(attr.value);
+      }
+    }
     if ('childNodes' in node) for (const child of node.childNodes) stack.push(child);
   }
-  return false;
+  return ids;
 }
 
 async function readHtml(res: Response) {
@@ -43,56 +47,79 @@ async function readHtml(res: Response) {
   }
 }
 
-export async function inspect(citation: URL, origin: URL): Promise<Finding> {
+function unknown(error: unknown): Finding {
+  return { state: 'unknown', detail: error instanceof Error ? error.message : 'request failed' };
+}
+
+// All citations in a group share the exact document URL, including its query.
+export async function inspectDocument(citations: URL[], origin: URL): Promise<Finding[]> {
+  const source = citations[0];
   let current = new URL(origin);
-  current.pathname = citation.pathname;
-  current.search = citation.search;
-  current.hash = citation.hash;
+  current.pathname = source.pathname;
+  current.search = source.search;
+  let overrideHash: string | undefined;
   const signal = AbortSignal.timeout(10000);
   const visited = new Set<string>();
+  const all = (state: Finding['state'], detail: string) => citations.map(() => ({ state, detail }));
   try {
     for (let hop = 0; hop <= 8; hop++) {
-      if (visited.has(current.href)) return { state: 'broken', detail: 'redirect loop' };
+      if (visited.has(current.href)) return all('broken', 'redirect loop');
       visited.add(current.href);
       const res = await fetch(current, { redirect: 'manual', signal });
       try {
         if ([301, 302, 303, 307, 308].includes(res.status)) {
           const location = res.headers.get('location');
-          if (!location) return { state: 'broken', detail: 'redirect without a destination' };
+          if (!location) return all('broken', 'redirect without a destination');
           const next = new URL(location, current);
           if (next.origin !== origin.origin || next.username || next.password)
-            return { state: 'unknown', detail: 'redirect leaves configured origin' };
-          if (!location.includes('#')) next.hash = current.hash;
+            return all('unknown', 'redirect leaves configured origin');
+          if (location.includes('#')) overrideHash = next.hash;
+          next.hash = '';
           current = next;
           continue;
         }
-        if ([404, 410].includes(res.status))
-          return { state: 'broken', detail: 'HTTP ' + res.status };
-        if (!res.ok) return { state: 'unknown', detail: 'HTTP ' + res.status };
-        if (!current.hash && current.pathname === '/' && citation.pathname !== '/')
-          return { state: 'broken', detail: 'redirects to homepage' };
+        if ([404, 410].includes(res.status)) return all('broken', 'HTTP ' + res.status);
+        if (!res.ok) return all('unknown', 'HTTP ' + res.status);
         const landedPath = current.pathname.replace(/\/+$/, '');
-        const citedPath = citation.pathname.replace(/\/+$/, '');
-        if (!current.hash && landedPath && citedPath.startsWith(landedPath + '/'))
-          return { state: 'broken', detail: 'redirects to a parent section: ' + landedPath };
-        if (citation.hash && !current.hash) return { state: 'broken', detail: 'redirect discards cited anchor' };
-        if (current.hash) {
-          if (!/^text\/html\b/i.test(res.headers.get('content-type') ?? '') ||
-              current.hash.includes(':~:'))
-            return { state: 'unknown', detail: 'unsupported fragment type' };
-          const id = decodeURIComponent(current.hash.slice(1));
-          if (id.toLowerCase() !== 'top' && !hasAnchor(await readHtml(res), id))
-            return { state: 'broken', detail: 'missing HTML anchor' };
+        const citedPath = source.pathname.replace(/\/+$/, '');
+        const html = /^text\/html(?:\s*;|$)/i.test(res.headers.get('content-type') ?? '');
+        let ids: Set<string> | undefined;
+        let htmlError: Finding | undefined;
+        const hashes = citations.map(url => overrideHash ?? url.hash);
+        if (html && hashes.some(hash => hash && hash.toLowerCase() !== '#top' && !hash.includes(':~:'))) {
+          try { ids = anchorIds(await readHtml(res)); }
+          catch (error) { htmlError = unknown(error); }
         }
-        return { state: 'ok', detail: 'HTTP ' + res.status };
+        return citations.map((citation, i): Finding => {
+          const hash = hashes[i];
+          if (!hash) {
+            if (citation.hash) return {state: 'broken', detail: 'redirect discards cited anchor'};
+            if (current.pathname === '/' && citation.pathname !== '/') return {state: 'broken', detail: 'redirects to homepage'};
+            if (landedPath && citedPath.startsWith(landedPath + '/'))
+              return {state: 'broken', detail: 'redirects to a parent section: ' + landedPath};
+          } else {
+            if (!html || hash.includes(':~:')) return {state: 'unknown', detail: 'unsupported fragment type'};
+            let id: string;
+            try { id = decodeURIComponent(hash.slice(1)); } catch { return {state: 'unknown', detail: 'invalid encoded fragment'}; }
+            if (id.toLowerCase() !== 'top') {
+              if (htmlError) return htmlError;
+              if (!ids?.has(id)) return {state: 'broken', detail: 'missing HTML anchor'};
+            }
+          }
+          return {state: 'ok', detail: 'HTTP ' + res.status};
+        });
       } finally {
         if (!res.bodyUsed) await res.body?.cancel();
       }
     }
-    return { state: 'unknown', detail: 'redirect limit exceeded' };
+    return all('unknown', 'redirect limit exceeded');
   } catch (error) {
-    return { state: 'unknown', detail: error instanceof Error ? error.name + ': ' + error.message : 'request failed' };
+    return citations.map(() => unknown(error));
   }
+}
+
+export async function inspect(citation: URL, origin: URL): Promise<Finding> {
+  return (await inspectDocument([citation], origin))[0];
 }
 
 export function verdict(live: Finding, preview: Finding) {

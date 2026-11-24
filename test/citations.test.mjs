@@ -59,3 +59,46 @@ test('file import rejects accidental off-site targets and empty lists', async ()
     await writeFile(file,data); await assert.rejects(inventory(origin,file));
   }
 });
+
+test('multiple anchors reuse one document request and get independent verdicts', async t => {
+  const {inspectDocument} = await import('../src/check.ts');
+  const get = t.mock.method(globalThis, 'fetch', async () => new Response(
+    '<h1 id="found">Docs</h1>', {headers:{'content-type':'text/html'}}));
+  const urls = ['', '#found', '#missing', '#%ZZ', '#:~:text=Docs'].map(hash => new URL('/guide' + hash, origin));
+  const rows = await inspectDocument(urls, origin);
+  assert.equal(get.mock.callCount(), 1);
+  assert.deepEqual(rows.map(row => row.state), ['ok','ok','broken','unknown','unknown']);
+});
+
+test('an oversized anchored response preserves the unanchored verdict', async t => {
+  const {inspectDocument} = await import('../src/check.ts');
+  t.mock.method(globalThis,'fetch', async () => new Response('x'.repeat(2*1024*1024 + 1),
+    {headers:{'content-type':'text/html'}}));
+  const urls = ['/guide', '/guide#x'].map(path => new URL(path, origin));
+  const rows = await inspectDocument(urls, origin);
+  assert.deepEqual(rows.map(row => row.state), ['ok','unknown']);
+});
+
+test('distinct query variants stay separate and JSON output redacts query values', async () => {
+  const file = join(dir, 'versions.txt');
+  const urls = ['?v=first#okay','?v=second#okay'].map(query => new URL('/docs' + query, origin).href);
+  await writeFile(file, urls.join('\n'));
+  const [a,b] = await inventory(origin, file);
+  assert.notEqual(a.url.search,b.url.search);
+  const {execFile} = await import('node:child_process');
+  const {promisify} = await import('node:util');
+  const hits = [];
+  const preview = createServer((req,res) => {
+    hits.push(req.url);
+    res.writeHead(200,{'content-type':'text/html'}).end('<h1 id="okay">Guide</h1>');
+  });
+  preview.listen(0,'127.0.0.1');
+  await once(preview,'listening');
+  try {
+    const {stdout} = await promisify(execFile)(process.execPath,['src/cli.ts','--file',file,
+      '--production',origin.origin,'--preview','http://127.0.0.1:' + preview.address().port,'--json']);
+    assert.deepEqual(hits.sort(),['/docs?v=first','/docs?v=second']);
+    assert.deepEqual(JSON.parse(stdout).rows.map(row => row.verdict),['pass','pass']);
+    assert.doesNotMatch(stdout,/first|second/);
+  } finally { preview.close(); }
+});

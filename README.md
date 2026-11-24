@@ -54,6 +54,8 @@ Add the step below to your existing trusted deployment job **after the preview f
 
 Pin the action to a reviewed commit SHA for production use. Check out the repository containing `citations.csv` before this step. The action needs no GitHub write permissions. A failed step marks its job as failed. Configure that job as a required check to enforce it before merging.
 
+Citations that differ only by fragment share one fetch per redirect hop and one parse of the final HTML per origin. Query strings remain distinct. The checker processes at most four documents at once on each origin.
+
 ## Read the result
 
 | Result | Meaning |

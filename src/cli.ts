@@ -1,6 +1,6 @@
 import { parseArgs } from 'node:util';
 import { appendFile } from 'node:fs/promises';
-import { inspect, site, verdict } from './check.ts';
+import { inspectDocument, site, verdict } from './check.ts';
 import { inventory } from './inventory.ts';
 
 const usage = 'node src/cli.ts --production ORIGIN --preview ORIGIN --file citations.csv [--json]';
@@ -18,15 +18,27 @@ async function main() {
   const citations = await inventory(production, values.file);
   const rows: { path: string; count: number; engines: string[]; verdict: ReturnType<typeof verdict>;
     production: string; preview: string }[] = [];
-  for (let i = 0; i < citations.length; i += 4) {
-    const chunk = await Promise.all(citations.slice(i, i + 4).map(async citation => {
-      const [live, next] = await Promise.all([inspect(citation.url, production), inspect(citation.url, preview)]);
-      const path = citation.url.pathname + (citation.url.search ? '?[redacted]' : '') + citation.url.hash;
-      return { path, count: citation.count, engines: [...citation.engines].sort(), verdict: verdict(live, next),
-        production: live.detail, preview: next.detail } as const;
-    }));
-    rows.push(...chunk);
+  const documents = new Map<string, number[]>();
+  for (const [index, citation] of citations.entries()) {
+    const key = citation.url.href.split('#', 1)[0];
+    const indexes = documents.get(key);
+    if (indexes) indexes.push(index);
+    else documents.set(key, [index]);
   }
+  const pending = documents.values();
+  async function worker() {
+    for (const indexes of pending) {
+      const urls = indexes.map(i => citations[i].url);
+      const [live, next] = await Promise.all([inspectDocument(urls, production), inspectDocument(urls, preview)]);
+      for (const [position, index] of indexes.entries()) {
+        const {url, count, engines} = citations[index];
+        const path = url.pathname + (url.search ? '?[redacted]' : '') + url.hash;
+        rows[index] = {path, count, engines: [...engines].sort(), verdict: verdict(live[position], next[position]),
+          production: live[position].detail, preview: next[position].detail};
+      }
+    }
+  }
+  await Promise.all(Array.from({length: Math.min(4, documents.size)}, worker));
   const regressions = rows.filter(row => row.verdict === 'regression').length;
   const unknown = rows.filter(row => row.verdict === 'inconclusive').length;
   const summary = rows.length + ' checked, ' + regressions + ' new regressions, ' + unknown + ' inconclusive';
