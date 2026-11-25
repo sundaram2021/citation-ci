@@ -66,6 +66,7 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
   current.pathname = source.pathname;
   current.search = source.search;
   let overrideHash: string | undefined;
+  let explicitFragmentDocument: string | undefined;
   let homepageSectionTargeted = false;
   const signal = AbortSignal.timeout(10000);
   const visited = new Set<string>();
@@ -83,7 +84,10 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
           if (next.origin !== origin.origin || next.username || next.password)
             return all('unknown', 'redirect leaves configured origin');
           if (next.pathname === '/' && current.pathname !== '/') homepageSectionTargeted = Boolean(next.hash);
-          if (location.includes('#')) overrideHash = next.hash;
+          if (location.includes('#')) {
+            overrideHash = next.hash;
+            explicitFragmentDocument = next.pathname + next.search;
+          }
           next.hash = '';
           current = next;
           continue;
@@ -95,6 +99,8 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
         if (current.pathname === '/' && source.pathname !== '/' && !(homepageSectionTargeted && overrideHash))
           return all('broken', 'redirects to homepage');
         const acceptedParent = policy.parentMoves?.get(source.pathname + source.search) === current.pathname + current.search;
+        const undeclaredParent = !acceptedParent && landedPath !== '' && citedPath.startsWith(landedPath + '/');
+        const inheritedOnParent = undeclaredParent && explicitFragmentDocument !== current.pathname + current.search;
         const html = /^text\/html(?:\s*;|$)/i.test(res.headers.get('content-type') ?? '');
         let ids: Set<string> | undefined;
         let htmlError: Finding | undefined;
@@ -115,7 +121,7 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
           const hash = hashes[i];
           if (!hash) {
             if (citation.hash) return {state: 'broken', detail: 'redirect discards cited anchor'};
-            if (!acceptedParent && landedPath && citedPath.startsWith(landedPath + '/'))
+            if (undeclaredParent)
               return {state: 'broken', detail: 'redirects to a parent section: ' + landedPath};
           } else {
             if (!html || hash.includes(':~:')) return {state: 'unknown', detail: 'unsupported fragment type'};
@@ -125,6 +131,7 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
               if (htmlError) return htmlError;
               if (!ids?.has(id)) return {state: 'broken', detail: 'missing HTML anchor'};
             }
+            if (inheritedOnParent) return {state: 'unknown', detail: 'parent page inherits cited anchor: ' + landedPath};
           }
           return {state: 'ok', detail: 'HTTP ' + res.status};
         });

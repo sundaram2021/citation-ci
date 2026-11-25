@@ -19,6 +19,8 @@ before(async () => {
       case '/lost-fragment': return res.writeHead(308, {location:'/docs#'}).end();
       case '/dead': return res.writeHead(410).end();
       case '/blocked': return res.writeHead(403).end();
+      case '/docs/explicit': return res.writeHead(302, {location:'/docs#okay'}).end();
+      case '/docs/indirect': return res.writeHead(302, {location:'/docs/intro#okay'}).end();
       case '/docs/intro': return res.writeHead(308, {location:'/docs'}).end();
       case '/home': return res.writeHead(301, {location:'/'}).end();
       case '/move': return res.writeHead(308, {location:'/docs'}).end();
@@ -35,7 +37,8 @@ before(async () => {
 after(async () => { server.close(); await rm(dir, {recursive:true, force:true}); });
 for (const [path, state] of [
   ['/canonical/','ok'], ['/docs/','ok'], ['/home-section#okay','ok'], ['/lost-fragment#okay','broken'],
-  ['/docs','ok'], ['/docs/intro','broken'], ['/docs/intro#okay','ok'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'], ['/home#okay','broken'], ['/home#top','broken'], ['/via-retired#okay','broken'],
+  ['/docs','ok'], ['/docs/intro','broken'], ['/docs/intro#okay','unknown'], ['/docs/intro#gone','broken'],
+  ['/docs/explicit#old','ok'], ['/docs/indirect#old','unknown'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'], ['/home#okay','broken'], ['/home#top','broken'], ['/via-retired#okay','broken'],
   ['/move#okay','ok'], ['/move#gone','broken'], ['/new-id#gone','ok'], ['/docs#fake','broken'],
   ['/docs#a%26b','ok'], ['/loop','broken'], ['/external','unknown'], ['/docs#:~:text=Docs','unknown']
 ]) {
@@ -136,6 +139,8 @@ test('only the declared parent move is accepted', async () => {
   assert.equal(await compare([['/docs/intro','/docs']]), 'ok');
   assert.equal(await compare([['/docs/other','/docs']]), 'broken');
   assert.equal(await compare([['/docs/intro','/docs?v=1']]), 'broken');
+  url.hash = 'okay';
+  assert.equal(await compare([['/docs/intro','/docs']]), 'ok');
   url.hash = 'gone';
   assert.equal(await compare([['/docs/intro','/docs']]), 'broken');
 });
