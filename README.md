@@ -37,6 +37,21 @@ The workflow waits up to five minutes for the PR’s exact commit to have a read
 
 Anchor checks use server-returned HTML. A JavaScript-generated anchor may be reported missing; a reachable page can pass even if its content has changed.
 
+### Configure site-specific redirects and error pages
+
+A redirect from a document to the homepage is broken even when the homepage reuses the original anchor ID. An explicit redirect to a homepage section (for example, `Location: /#installation`) still checks the replacement anchor.
+
+For an intentional move to a parent page or a site that serves an error template with HTTP 200, add the relevant inputs under the Action's `with` block:
+
+```yaml
+parent-moves: '{"/manual/chapter":"/manual"}'
+error-page-marker: 'data-template="docs-not-found"'
+```
+
+The CLI accepts the same values through `--parent-moves` and `--error-page-marker`. Parent moves match the exact source and final path, including query strings and trailing slashes. A match permits the parent redirect and still checks HTTP status and fragments.
+
+Choose a case-sensitive literal unique to the raw HTML of your error template. When configured, the checker reads HTML on both origins, including pages without a fragment. A matching page is broken. An unreadable HTML body or one larger than 2 MiB is inconclusive. Without a marker, ordinary HTTP 200 pages without fragments keep their status-only check.
+
 ### Does the GitHub check fail?
 
 | Run result | CLI exit | `mode: enforce` | `mode: report` |

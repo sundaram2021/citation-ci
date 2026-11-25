@@ -31,6 +31,12 @@ inputs:
   vercel-team:
     description: Team ID for a team-owned Vercel project
     required: false
+  parent-moves:
+    description: JSON object mapping an exact citation path and query to its accepted parent destination
+    required: false
+  error-page-marker:
+    description: Case-sensitive literal unique to the site's HTML error template
+    required: false
   mode:
     description: 'enforce fails on regressions or inconclusive results; report surfaces findings without blocking'
     default: enforce
@@ -54,6 +60,8 @@ runs:
         CITATION_PRODUCTION: ${{ inputs.production }}
         CITATION_PREVIEW: ${{ inputs.preview }}
         CITATION_FILE: ${{ inputs.file }}
+        PARENT_MOVES: ${{ inputs.parent-moves }}
+        ERROR_PAGE_MARKER: ${{ inputs.error-page-marker }}
         SOURCE_REPO: ${{ inputs.source-repo }}
         SOURCE_PATH: ${{ inputs.source-path }}
         GH_SOURCE_TOKEN: ${{ inputs.source-token }}
@@ -69,6 +77,8 @@ runs:
         if [[ -n "$SOURCE_PATH" ]]; then args+=(--source-path "$SOURCE_PATH"); fi
         if [[ -n "$VERCEL_PROJECT" ]]; then args+=(--vercel-project "$VERCEL_PROJECT"); fi
         if [[ -n "$COMMIT_SHA" ]]; then args+=(--commit "$COMMIT_SHA"); fi
+        if [[ -n "$PARENT_MOVES" ]]; then args+=(--parent-moves "$PARENT_MOVES"); fi
+        if [[ -n "$ERROR_PAGE_MARKER" ]]; then args+=(--error-page-marker "$ERROR_PAGE_MARKER"); fi
         code=0
         node "$GITHUB_ACTION_PATH/src/cli.ts" "${args[@]}" || code=$?
         printf 'exit-code=%s\n' "$code" >> "$GITHUB_OUTPUT"

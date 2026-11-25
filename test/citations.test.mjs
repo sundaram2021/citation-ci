@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { inspect, site, verdict } from '../src/check.ts';
+import { inspect, inspectDocument, site, verdict } from '../src/check.ts';
 import { inventory } from '../src/inventory.ts';
 
 let server, origin, dir;
@@ -34,7 +34,7 @@ before(async () => {
 after(async () => { server.close(); await rm(dir, {recursive:true, force:true}); });
 for (const [path, state] of [
   ['/canonical/','ok'], ['/docs/','ok'], ['/home-section#okay','ok'], ['/lost-fragment#okay','broken'],
-  ['/docs','ok'], ['/docs/intro','broken'], ['/docs/intro#okay','ok'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'],
+  ['/docs','ok'], ['/docs/intro','broken'], ['/docs/intro#okay','ok'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'], ['/home#okay','broken'], ['/home#top','broken'],
   ['/move#okay','ok'], ['/move#gone','broken'], ['/new-id#gone','ok'], ['/docs#fake','broken'],
   ['/docs#a%26b','ok'], ['/loop','broken'], ['/external','unknown'], ['/docs#:~:text=Docs','unknown']
 ]) {
@@ -126,5 +126,44 @@ test('distinct query variants stay separate and JSON output redacts query values
     assert.deepEqual(hits.sort(),['/docs?v=first','/docs?v=second']);
     assert.deepEqual(JSON.parse(stdout).rows.map(row => row.verdict),['pass','pass']);
     assert.doesNotMatch(stdout,/first|second/);
+  } finally { preview.close(); }
+});
+
+test('only the declared parent move is accepted', async () => {
+  const url = new URL('/docs/intro', origin);
+  const compare = async moves => (await inspectDocument([url], origin, {parentMoves: new Map(moves)}))[0].state;
+  assert.equal(await compare([['/docs/intro','/docs']]), 'ok');
+  assert.equal(await compare([['/docs/other','/docs']]), 'broken');
+  assert.equal(await compare([['/docs/intro','/docs?v=1']]), 'broken');
+  url.hash = 'gone';
+  assert.equal(await compare([['/docs/intro','/docs']]), 'broken');
+});
+
+test('the CLI recognizes a configured soft 404 and accepts an exact parent move', async () => {
+  const {execFile} = await import('node:child_process');
+  const {promisify} = await import('node:util');
+  const file = join(dir, 'policy.txt');
+  await writeFile(file, ['/docs/intro', '/missing', '/missing#okay', '/article'].map(p => new URL(p, origin).href).join('\n'));
+  const preview = createServer((req, res) => {
+    if (req.url === '/docs/intro') return res.writeHead(301, {location:'/docs'}).end();
+    const body = req.url === '/missing'
+      ? '<main data-template="docs-not-found" id="okay">Missing</main>'
+      : '<article>How to diagnose a 404</article>';
+    res.writeHead(200, {'content-type':'text/html'}).end(body);
+  });
+  preview.listen(0, '127.0.0.1');
+  await once(preview, 'listening');
+  try {
+    const args = ['src/cli.ts', '--file', file, '--production', origin.origin,
+      '--preview', 'http://127.0.0.1:' + preview.address().port, '--parent-moves', '{"/docs/intro":"/docs"}',
+      '--error-page-marker', 'data-template="docs-not-found"', '--json'];
+    await assert.rejects(promisify(execFile)(process.execPath, args), error => {
+      assert.equal(error.code, 1);
+      const {rows} = JSON.parse(error.stdout);
+      assert.deepEqual(Object.fromEntries(rows.map(r => [r.path, r.verdict])), {
+        '/docs/intro':'pass', '/missing':'regression', '/missing#okay':'regression', '/article':'pass'
+      });
+      return true;
+    });
   } finally { preview.close(); }
 });
