@@ -1,15 +1,39 @@
 name: Citation CI
-description: Compare AI-cited URLs on production and a deployment preview
+description: Check published documentation links against a deployment preview
 inputs:
   production:
     description: Production origin that owns the citations
     required: true
   preview:
-    description: Preview origin for this exact revision
-    required: true
+    description: Preview origin for this exact revision, instead of Vercel discovery
+    required: false
   file:
     description: CSV or newline-delimited inventory in the caller workspace
-    required: true
+    required: false
+  source-repo:
+    description: GitHub owner/repo whose default branch publishes links (instead of file)
+    required: false
+  source-path:
+    description: Optional Markdown file or directory within source-repo
+    required: false
+  source-token:
+    description: GitHub contents-read token for the source API
+    required: false
+  vercel-project:
+    description: Vercel project ID for preview discovery
+    required: false
+  commit:
+    description: Exact PR head SHA for preview discovery
+    required: false
+  vercel-token:
+    description: Token to read deployments on Vercel
+    required: false
+  vercel-team:
+    description: Team ID for a team-owned Vercel project
+    required: false
+  mode:
+    description: 'enforce fails on regressions or inconclusive results; report surfaces findings without blocking'
+    default: enforce
 outputs:
   exit-code:
     description: 'Checker exit code: 0 clean, 1 regression, 2 inconclusive or error'
@@ -30,9 +54,34 @@ runs:
         CITATION_PRODUCTION: ${{ inputs.production }}
         CITATION_PREVIEW: ${{ inputs.preview }}
         CITATION_FILE: ${{ inputs.file }}
+        SOURCE_REPO: ${{ inputs.source-repo }}
+        SOURCE_PATH: ${{ inputs.source-path }}
+        GH_SOURCE_TOKEN: ${{ inputs.source-token }}
+        VERCEL_PROJECT: ${{ inputs.vercel-project }}
+        VERCEL_TEAM_ID: ${{ inputs.vercel-team }}
+        VERCEL_TOKEN: ${{ inputs.vercel-token }}
+        COMMIT_SHA: ${{ inputs.commit }}
       run: |
-        args=(--production "$CITATION_PRODUCTION" --preview "$CITATION_PREVIEW" --file "$CITATION_FILE")
+        args=(--production "$CITATION_PRODUCTION")
+        if [[ -n "$CITATION_PREVIEW" ]]; then args+=(--preview "$CITATION_PREVIEW"); fi
+        if [[ -n "$CITATION_FILE" ]]; then args+=(--file "$CITATION_FILE"); fi
+        if [[ -n "$SOURCE_REPO" ]]; then args+=(--source-repo "$SOURCE_REPO"); fi
+        if [[ -n "$SOURCE_PATH" ]]; then args+=(--source-path "$SOURCE_PATH"); fi
+        if [[ -n "$VERCEL_PROJECT" ]]; then args+=(--vercel-project "$VERCEL_PROJECT"); fi
+        if [[ -n "$COMMIT_SHA" ]]; then args+=(--commit "$COMMIT_SHA"); fi
         code=0
         node "$GITHUB_ACTION_PATH/src/cli.ts" "${args[@]}" || code=$?
         printf 'exit-code=%s\n' "$code" >> "$GITHUB_OUTPUT"
-        exit "$code"
+    - name: Apply check policy
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        COMPLETE: ${{ steps.compare.outputs.comparison-complete }}
+        CODE: ${{ steps.compare.outputs.exit-code }}
+      run: |
+        case "$MODE" in
+          report) if [[ "$COMPLETE" == true ]]; then exit 0; fi ;;
+          enforce) ;;
+          *) printf 'Expected mode report or enforce\n' >&2; exit 2 ;;
+        esac
+        exit "$CODE"

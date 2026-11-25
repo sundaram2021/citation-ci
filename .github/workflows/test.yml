@@ -34,13 +34,35 @@ jobs:
           production: http://127.0.0.1:43111
           preview: http://127.0.0.1:43112
           file: ${{ runner.temp }}/citations.txt
-      - name: Assert failure and restore the cited section
+      - name: Report findings without blocking rollout
+        id: reported
+        uses: ./
+        with:
+          production: http://127.0.0.1:43111
+          preview: http://127.0.0.1:43112
+          file: ${{ runner.temp }}/citations.txt
+          mode: report
+      - name: Report mode must not mask an invalid inventory
+        id: invalid
+        continue-on-error: true
+        uses: ./
+        with:
+          production: http://127.0.0.1:43111
+          preview: http://127.0.0.1:43112
+          file: ${{ runner.temp }}/missing.txt
+          mode: report
+      - name: Assert outcomes and restore the cited section
         env:
           OUTCOME: ${{ steps.broken.outcome }}
           EXIT_CODE: ${{ steps.broken.outputs.exit-code }}
+          REPORT_CODE: ${{ steps.reported.outputs.exit-code }}
+          INVALID_OUTCOME: ${{ steps.invalid.outcome }}
+          INVALID_CODE: ${{ steps.invalid.outputs.exit-code }}
         run: |
           test "$OUTCOME" = failure
           test "$EXIT_CODE" = 1
+          test "$REPORT_CODE" = 1
+          test "$INVALID_OUTCOME" = failure && test "$INVALID_CODE" = 2
           cp "$RUNNER_TEMP/live/auth.html" "$RUNNER_TEMP/preview/auth.html"
       - name: Check repaired preview
         uses: ./
