@@ -66,6 +66,7 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
   current.pathname = source.pathname;
   current.search = source.search;
   let overrideHash: string | undefined;
+  let homepageSectionTargeted = false;
   const signal = AbortSignal.timeout(10000);
   const visited = new Set<string>();
   const all = (state: Finding['state'], detail: string) => citations.map(() => ({ state, detail }));
@@ -81,6 +82,7 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
           const next = new URL(location, current);
           if (next.origin !== origin.origin || next.username || next.password)
             return all('unknown', 'redirect leaves configured origin');
+          if (next.pathname === '/' && current.pathname !== '/') homepageSectionTargeted = Boolean(next.hash);
           if (location.includes('#')) overrideHash = next.hash;
           next.hash = '';
           current = next;
@@ -90,7 +92,7 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
         if (!res.ok) return all('unknown', 'HTTP ' + res.status);
         const landedPath = current.pathname.replace(/\/+$/, '');
         const citedPath = source.pathname.replace(/\/+$/, '');
-        if (current.pathname === '/' && source.pathname !== '/' && !overrideHash)
+        if (current.pathname === '/' && source.pathname !== '/' && !(homepageSectionTargeted && overrideHash))
           return all('broken', 'redirects to homepage');
         const acceptedParent = policy.parentMoves?.get(source.pathname + source.search) === current.pathname + current.search;
         const html = /^text\/html(?:\s*;|$)/i.test(res.headers.get('content-type') ?? '');

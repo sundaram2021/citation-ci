@@ -14,6 +14,7 @@ before(async () => {
   server = createServer((req, res) => {
     switch (req.url) {
       case '/canonical/': return res.writeHead(308, {location:'/canonical'}).end();
+      case '/via-retired': return res.writeHead(302, {location:'/home#okay'}).end();
       case '/home-section': return res.writeHead(308, {location:'/#okay'}).end();
       case '/lost-fragment': return res.writeHead(308, {location:'/docs#'}).end();
       case '/dead': return res.writeHead(410).end();
@@ -34,7 +35,7 @@ before(async () => {
 after(async () => { server.close(); await rm(dir, {recursive:true, force:true}); });
 for (const [path, state] of [
   ['/canonical/','ok'], ['/docs/','ok'], ['/home-section#okay','ok'], ['/lost-fragment#okay','broken'],
-  ['/docs','ok'], ['/docs/intro','broken'], ['/docs/intro#okay','ok'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'], ['/home#okay','broken'], ['/home#top','broken'],
+  ['/docs','ok'], ['/docs/intro','broken'], ['/docs/intro#okay','ok'], ['/dead','broken'], ['/blocked','unknown'], ['/home','broken'], ['/home#okay','broken'], ['/home#top','broken'], ['/via-retired#okay','broken'],
   ['/move#okay','ok'], ['/move#gone','broken'], ['/new-id#gone','ok'], ['/docs#fake','broken'],
   ['/docs#a%26b','ok'], ['/loop','broken'], ['/external','unknown'], ['/docs#:~:text=Docs','unknown']
 ]) {
