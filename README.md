@@ -25,6 +25,20 @@ Already have a URL list? Replace `--source-repo` and `--source-path` with `--fil
 
 The workflow waits up to five minutes for the PR’s exact commit to have a ready preview. Open the `published-links` job summary to see findings. The workflow skips fork and Dependabot PRs.
 
+### Show findings in the PR conversation
+
+On a revision that includes PR comments, set `pr-comment: 'true'` under the Action’s `with` block. Grant the calling job these permissions:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
+
+The first regression or inconclusive result creates a comment showing up to five affected paths, the production and preview results, and a link to the run. Later runs update the same comment for the workflow and job, including after repairs or setup errors. A clean first run stays quiet. Use one commenting check per job and the example workflow’s per-PR concurrency group to serialize updates.
+
+Comments default to off and run only on same-repository pull requests, skipping Dependabot. A comment permission error emits a warning. The existing enforce/report setting still determines the check result.
+
 ## Interpret the result
 
 | Result | Meaning |
@@ -36,6 +50,21 @@ The workflow waits up to five minutes for the PR’s exact commit to have a read
 | `inconclusive` | At least one site could not be checked reliably. |
 
 Anchor checks use server-returned HTML. A JavaScript-generated anchor may be reported missing; a reachable page can pass even if its content has changed.
+
+### Configure site-specific redirects and error pages
+
+A redirect from a document to the homepage is broken even when the homepage reuses the original anchor ID. An explicit redirect to a homepage section (for example, `Location: /#installation`) still checks the replacement anchor.
+
+For an intentional move to a parent page or a site that serves an error template with HTTP 200, add the relevant inputs under the Action's `with` block:
+
+```yaml
+parent-moves: '{"/manual/chapter":"/manual"}'
+error-page-marker: 'data-template="docs-not-found"'
+```
+
+The CLI accepts the same values through `--parent-moves` and `--error-page-marker`. Parent moves match the exact source and final path, including query strings and trailing slashes. A match permits the parent redirect and still checks HTTP status and fragments. If an undeclared parent page inherits a fragment, a missing anchor is a regression against a working baseline. A matching ID is inconclusive because the parent may reuse that ID for another section. An explicit redirect to a section on the destination page checks the named anchor normally.
+
+Choose a case-sensitive literal unique to the raw HTML of your error template. When configured, the checker reads HTML on both origins, including pages without a fragment. A matching page is broken. An unreadable HTML body or one larger than 2 MiB is inconclusive. Without a marker, ordinary HTTP 200 pages without fragments keep their status-only check.
 
 ### Does the GitHub check fail?
 

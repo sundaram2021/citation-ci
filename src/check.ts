@@ -54,13 +54,20 @@ function unknown(error: unknown): Finding {
   return { state: 'unknown', detail: error instanceof Error ? error.message : 'request failed' };
 }
 
+export type CheckPolicy = {
+  parentMoves?: ReadonlyMap<string, string>;
+  errorPageMarker?: string;
+};
+
 // All citations in a group share the exact document URL, including its query.
-export async function inspectDocument(citations: URL[], origin: URL): Promise<Finding[]> {
+export async function inspectDocument(citations: URL[], origin: URL, policy: CheckPolicy = {}): Promise<Finding[]> {
   const source = citations[0];
   let current = new URL(origin);
   current.pathname = source.pathname;
   current.search = source.search;
   let overrideHash: string | undefined;
+  let explicitFragmentDocument: string | undefined;
+  let homepageSectionTargeted = false;
   const signal = AbortSignal.timeout(10000);
   const visited = new Set<string>();
   const all = (state: Finding['state'], detail: string) => citations.map(() => ({ state, detail }));
@@ -76,7 +83,11 @@ export async function inspectDocument(citations: URL[], origin: URL): Promise<Fi
           const next = new URL(location, current);
           if (next.origin !== origin.origin || next.username || next.password)
             return all('unknown', 'redirect leaves configured origin');
-          if (location.includes('#')) overrideHash = next.hash;
+          if (next.pathname === '/' && current.pathname !== '/') homepageSectionTargeted = Boolean(next.hash);
+          if (location.includes('#')) {
+            overrideHash = next.hash;
+            explicitFragmentDocument = next.pathname + next.search;
+          }
           next.hash = '';
           current = next;
           continue;
@@ -85,20 +96,32 @@ export async function inspectDocument(citations: URL[], origin: URL): Promise<Fi
         if (!res.ok) return all('unknown', 'HTTP ' + res.status);
         const landedPath = current.pathname.replace(/\/+$/, '');
         const citedPath = source.pathname.replace(/\/+$/, '');
+        if (current.pathname === '/' && source.pathname !== '/' && !(homepageSectionTargeted && overrideHash))
+          return all('broken', 'redirects to homepage');
+        const acceptedParent = policy.parentMoves?.get(source.pathname + source.search) === current.pathname + current.search;
+        const undeclaredParent = !acceptedParent && landedPath !== '' && citedPath.startsWith(landedPath + '/');
+        const inheritedOnParent = undeclaredParent && explicitFragmentDocument !== current.pathname + current.search;
         const html = /^text\/html(?:\s*;|$)/i.test(res.headers.get('content-type') ?? '');
         let ids: Set<string> | undefined;
         let htmlError: Finding | undefined;
         const hashes = citations.map(url => overrideHash ?? url.hash);
-        if (html && hashes.some(hash => hash && hash.toLowerCase() !== '#top' && !hash.includes(':~:'))) {
-          try { ids = anchorIds(await readHtml(res)); }
-          catch (error) { htmlError = unknown(error); }
+        const needsIds = hashes.some(hash => hash && hash.toLowerCase() !== '#top' && !hash.includes(':~:'));
+        if (html && (needsIds || policy.errorPageMarker)) {
+          try {
+            const body = await readHtml(res);
+            if (policy.errorPageMarker && body.includes(policy.errorPageMarker))
+              return all('broken', 'matched configured error page marker');
+            if (needsIds) ids = anchorIds(body);
+          } catch (error) {
+            if (policy.errorPageMarker) throw error;
+            htmlError = unknown(error);
+          }
         }
         return citations.map((citation, i): Finding => {
           const hash = hashes[i];
           if (!hash) {
             if (citation.hash) return {state: 'broken', detail: 'redirect discards cited anchor'};
-            if (current.pathname === '/' && citation.pathname !== '/') return {state: 'broken', detail: 'redirects to homepage'};
-            if (landedPath && citedPath.startsWith(landedPath + '/'))
+            if (undeclaredParent)
               return {state: 'broken', detail: 'redirects to a parent section: ' + landedPath};
           } else {
             if (!html || hash.includes(':~:')) return {state: 'unknown', detail: 'unsupported fragment type'};
@@ -108,6 +131,7 @@ export async function inspectDocument(citations: URL[], origin: URL): Promise<Fi
               if (htmlError) return htmlError;
               if (!ids?.has(id)) return {state: 'broken', detail: 'missing HTML anchor'};
             }
+            if (inheritedOnParent) return {state: 'unknown', detail: 'parent page inherits cited anchor: ' + landedPath};
           }
           return {state: 'ok', detail: 'HTTP ' + res.status};
         });

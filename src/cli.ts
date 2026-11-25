@@ -1,22 +1,43 @@
 import { parseArgs } from 'node:util';
-import { appendFile } from 'node:fs/promises';
+import { appendFile, writeFile } from 'node:fs/promises';
 import { inspectDocument, site, verdict } from './check.ts';
 import { inventory } from './inventory.ts';
 import { discover } from './discover.ts';
 import { previewForCommit } from './vercel.ts';
 import type { Source } from './check.ts';
 
-const usage = 'node src/cli.ts --production ORIGIN (--preview ORIGIN | --vercel-project ID --commit SHA) (--file citations.csv | --source-repo OWNER/REPO [--source-path PATH]) [--json]';
+const usage = 'node src/cli.ts --production ORIGIN (--preview ORIGIN | --vercel-project ID --commit SHA) (--file citations.csv | --source-repo OWNER/REPO [--source-path PATH]) [--parent-moves JSON] [--error-page-marker TEXT] [--json]';
+
+function parentMoves(raw: string | undefined): Map<string, string> {
+  if (raw === undefined) return new Map();
+  const moves: unknown = JSON.parse(raw);
+  if (!moves || typeof moves !== 'object' || Array.isArray(moves))
+    throw new Error('--parent-moves expects a JSON object of source to destination paths');
+  const result = new Map<string, string>();
+  for (const [from, to] of Object.entries(moves)) {
+    for (const path of [from, to]) {
+      if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('#'))
+        throw new Error('--parent-moves requires exact origin-relative paths without fragments');
+      const url = new URL(path, 'https://docs.invalid');
+      if (url.origin !== 'https://docs.invalid' || url.pathname + url.search !== path)
+        throw new Error('--parent-moves requires canonical paths and queries');
+    }
+    result.set(from, to);
+  }
+  return result;
+}
 
 async function main() {
   const { values } = parseArgs({ options: {
     production: { type: 'string' }, preview: { type: 'string' }, file: { type: 'string' },
     'source-repo': {type:'string'}, 'source-path': {type:'string'}, 'vercel-project': {type:'string'}, commit: {type:'string'},
+    'parent-moves': { type: 'string' }, 'error-page-marker': { type: 'string' },
     json: { type: 'boolean' }, help: { type: 'boolean', short: 'h' }
   } });
   if (values.help) { console.log(usage); return 0; }
   if (!values.production || !!values.file === !!values['source-repo'] || (!!values['source-path'] && !values['source-repo']) ||
       !!values.preview === !!values['vercel-project'] || !!values['vercel-project'] !== !!values.commit) throw new Error(usage);
+  const policy = { parentMoves: parentMoves(values['parent-moves']), errorPageMarker: values['error-page-marker'] };
   const production = site(values.production);
   const preview = values.preview ? site(values.preview) : await previewForCommit(values['vercel-project']!, values.commit!, process.env.VERCEL_TOKEN, process.env.VERCEL_TEAM_ID);
   if (production.origin === preview.origin) throw new Error('Choose distinct production and preview origins');
@@ -34,7 +55,7 @@ async function main() {
   async function worker() {
     for (const indexes of pending) {
       const urls = indexes.map(i => citations[i].url);
-      const [live, next] = await Promise.all([inspectDocument(urls, production), inspectDocument(urls, preview)]);
+      const [live, next] = await Promise.all([inspectDocument(urls, production, policy), inspectDocument(urls, preview, policy)]);
       for (const [position, index] of indexes.entries()) {
         const {url, count, engines} = citations[index];
         const path = url.pathname + (url.search ? '?[redacted]' : '') + url.hash;
@@ -63,6 +84,10 @@ async function main() {
         (r.verdict === 'regression' && r.preview === 'missing HTML anchor' ? '<br>Restore the anchor or redirect to its replacement.' : '') + '</p>';
     });
     await appendFile(process.env.GITHUB_STEP_SUMMARY, '## Citation CI\n\n'+summary+'\n\n'+details.join('\n').slice(0,100000)+'\n');
+  }
+  if (process.env.CITATION_COMMENT_FILE) {
+    const findings = rows.filter(row => row.verdict === 'regression' || row.verdict === 'inconclusive');
+    await writeFile(process.env.CITATION_COMMENT_FILE, JSON.stringify({summary, findings: findings.slice(0, 5)}));
   }
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, 'comparison-complete=true\n');
   if (process.env.GITHUB_ACTIONS && (regressions || unknown)) {
