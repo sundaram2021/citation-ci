@@ -3,7 +3,8 @@ import { parse } from 'parse5';
 import type { DefaultTreeAdapterTypes } from 'parse5';
 
 export type Finding = { state: 'ok' | 'broken' | 'unknown'; detail: string };
-export type Citation = { url: URL; count: number; engines: Set<string> };
+export type Source = { repo: string; commit: string; path: string; line: number; permalink: string };
+export type Citation = { url: URL; count: number; engines: Set<string>; sources?: Source[] };
 
 export function site(value: string): URL {
   const url = new URL(value);

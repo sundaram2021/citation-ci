@@ -68,7 +68,7 @@ test('file import rejects accidental off-site targets and empty lists', async ()
   }
 });
 
-test('CLI requires a citation file before checking destinations', async () => {
+test('CLI requires a source repository or a citation file before checking destinations', async () => {
   const {spawnSync} = await import('node:child_process');
   const result = spawnSync(process.execPath, ['src/cli.ts', '--production', origin.origin,
     '--preview', 'http://localhost:1'], {encoding: 'utf8'});
