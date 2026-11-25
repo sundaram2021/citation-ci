@@ -35,6 +35,27 @@ The workflow waits up to five minutes for the PR’s exact commit to have a read
 | `pass` | Works on both sites. |
 | `inconclusive` | At least one site could not be checked reliably. |
 
-The CLI exits **1** for a regression, **2** for a setup error or an inconclusive run without a confirmed regression, and **0** otherwise. The workflow starts in `report` mode: findings appear in the summary, but only setup or execution errors fail the job. Switch to `enforce` to use the CLI exit code as the job result.
-
 Anchor checks use server-returned HTML. A JavaScript-generated anchor may be reported missing; a reachable page can pass even if its content has changed.
+
+### Does the GitHub check fail?
+
+| Run result | CLI exit | `mode: enforce` | `mode: report` |
+| --- | --- | --- | --- |
+| All links are `pass`, `fixed`, or `pre-existing` | `0` | Pass | Pass |
+| At least one `regression`, even if other links are `inconclusive` | `1` | Fail | Pass with findings |
+| At least one `inconclusive`, no regressions | `2` | Fail | Pass with findings |
+| The checker cannot complete (for example, no matching links or no ready preview) | `2` | Fail | Fail |
+
+The action defaults to `enforce`; the example workflow sets `report` explicitly. In either mode, read the job summary for per-link findings. A failed check blocks merging only if the repository requires it.
+
+## Paperlint: a live PR check
+
+In [Paperlint PR #1](https://github.com/sundaram2021/paperlint/pull/1), Citation CI discovered the homepage link on [line 15 of the published profile README](https://github.com/sundaram2021/sundaram2021/blob/071127efe55384f5d74385aacefa04f1857a653d/README.md#L15). The workflow used `enforce` and compared live production with the exact PR commit served on the GitHub Actions runner.
+
+| Run | Production `/` | PR checkout `/` | Verdict and check |
+| --- | --- | --- | --- |
+| [Baseline](https://github.com/sundaram2021/paperlint/actions/runs/45561402983) | 200 | 200 | `pass` — passed |
+| [Homepage returns Gone](https://github.com/sundaram2021/paperlint/actions/runs/45561704279) | 200 | 410 | `regression` — failed with exit `1`; the report linked to the README line |
+| [Homepage restored](https://github.com/sundaram2021/paperlint/actions/runs/45561795753) | 200 | 200 | `pass` — passed |
+
+Checked separately, the hosted Vercel preview redirected to sign-in and returned an `inconclusive` verdict. The three runs above did not test automatic Vercel deployment selection. The PR was closed without merging.
