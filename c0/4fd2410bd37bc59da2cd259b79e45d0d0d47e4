@@ -1,0 +1,21 @@
+.github/workflows/test.yml
+  s_feefab37bca6c7::t_a4686d1ce618ba 37-54,58-60,64-65
+action.yml
+  s_feefab37bca6c7::t_641b6f743f3536 2,8-9,12-36,57-63,65-71,75-87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c04fd2410bd37bc59da2cd259b79e45d0d0d47e4",
+  "prompts": {},
+  "sessions": {
+    "s_feefab37bca6c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_df1ff1721ffeSemEQ3vPC0eRui",
+        "model": "unknown"
+      },
+      "human_author": "Sundaram Kumar Jha <jhasundaram@outlook.com>"
+    }
+  }
+}
