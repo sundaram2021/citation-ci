@@ -1,4 +1,8 @@
 name: Citation CI
+author: sundaram2021
+branding:
+  icon: link
+  color: blue
 description: Check published documentation links against a deployment preview
 inputs:
   production:

@@ -1,9 +1,10 @@
 {
   "name": "citation-ci",
-  "version": "0.1.0",
+  "version": "1.0.0",
+  "license": "MIT",
   "private": true,
   "type": "module",
-  "description": "Check AI-cited links on a deployment preview before merging.",
+  "description": "Catch broken doc links, redirects, and missing anchors on preview deployments before merging.",
   "engines": {
     "node": ">=24"
   },
