@@ -88,3 +88,11 @@ test('standalone bundled CLI matches source output without a package installatio
   assert.equal(JSON.parse(built.stdout).rows[0].count,1234);
   assert.doesNotMatch(built.stdout+built.stderr,/hidden|fixture-bypass-secret/);
 });
+
+test('deployment workflow uses the reported environment URL without a preview secret', async () => {
+  const yaml = await readFile('examples/workflows/deployment-preview.yml','utf8');
+  assert.match(yaml, /^on: deployment_status$/m);
+  assert.match(yaml, /deployment_status.state == 'success' && github.event.deployment.environment != 'Production'/);
+  assert.ok(yaml.includes('preview: ${{ github.event.deployment_status.environment_url }}'));
+  assert.doesNotMatch(yaml, /secrets\.|actions\/checkout/);
+});

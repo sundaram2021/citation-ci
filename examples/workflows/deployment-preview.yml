@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: sundaram2021/citation-ci@v1 # Release placeholder: pin a full SHA containing the bundled Action before use.
+      - uses: sundaram2021/citation-ci@a6601c4535345eed670c96259c2956b4635860c2 # Bundled revision; v1 after release.
         with:
           production: ${{ vars.DOCS_PRODUCTION_ORIGIN }}
           preview: ${{ github.event.deployment_status.environment_url }}

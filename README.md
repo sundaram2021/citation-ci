@@ -48,7 +48,7 @@ Vercel discovery accepts only a single deployment hostname ending in `.vercel.ap
 
 Copy [the deployment status workflow](examples/workflows/deployment-preview.yml) for providers such as Netlify, Cloudflare Pages, Render or Vercel that publish GitHub deployment statuses. Configure the integration to supply the preview **origin** as its environment URL. The workflow compares each successful non-production deployment with `DOCS_PRODUCTION_ORIGIN`. It reads the published README without checking out deployment code and uses no preview credentials.
 
-Both examples use `@v1` as a release placeholder. Until that tag is published, pin the full commit SHA of this bundled revision. The Action runs the committed Node 24 bundle without installing npm packages. For development, `npm run check` runs the TypeScript source and `npm run build` regenerates the bundle.
+Both examples pin the full commit SHA of the bundled Action. The `v1` tag is reserved for release. The Action runs the committed Node 24 bundle without installing npm packages. For development, `npm run check` runs the TypeScript source and `npm run build` regenerates the bundle.
 
 ### Show findings in the PR conversation
 
