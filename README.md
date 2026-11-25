@@ -1,6 +1,6 @@
 # Citation CI
 
-Citation CI checks whether a docs preview breaks links published in a GitHub README or Markdown guide. It compares each URL on production and preview, including its query and HTML anchor. If a working link breaks, the report points to the published file and line.
+Citation CI catches broken doc links, redirects that lose the destination, and missing anchors on preview deployments before you merge. It compares production with the preview using links from published GitHub Markdown or MDX guides, or a CSV or TXT inventory from traffic analytics, AI citations, or support replies. For links discovered in a guide, the report points to the source file and line.
 
 ## Run against an existing preview
 
@@ -48,7 +48,7 @@ Vercel discovery accepts only a single deployment hostname ending in `.vercel.ap
 
 Copy [the deployment status workflow](examples/workflows/deployment-preview.yml) for providers such as Netlify, Cloudflare Pages, Render or Vercel that publish GitHub deployment statuses. Configure the integration to supply the preview **origin** as its environment URL. The workflow compares each successful non-production deployment with `DOCS_PRODUCTION_ORIGIN`. It reads the published README without checking out deployment code and uses no preview credentials.
 
-Both examples use report mode and reference the planned `v1` release tag. For strict pinning, replace `v1` with a full commit SHA from `main` that includes the bundled Action. The Action runs the committed Node 24 bundle without installing npm packages. For development, `npm run check` runs the TypeScript source and `npm run build` regenerates the bundle.
+Both examples use report mode and reference the `v1` release tag. For strict pinning, replace `v1` with a full commit SHA from `main` that includes the bundled Action. The Action runs the committed Node 24 bundle without installing npm packages. For development, `npm run check` runs the TypeScript source and `npm run build` regenerates the bundle.
 
 ### Show findings in the PR conversation
 
