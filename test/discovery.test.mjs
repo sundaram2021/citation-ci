@@ -50,3 +50,9 @@ test('failed newest preview cannot fall back to an older successful build', asyn
   await assert.rejects(previewForCommit('prj_1',sha,'fixture',undefined,async()=>Response.json({deployments:[
     {...deployment,readyState:'ERROR'},deployment]})),/is ERROR/);
 });
+
+test('invalid source paths are rejected before discovery makes any requests', async () => {
+  for (const path of ['docs//README.md', '/', '/docs', 'docs/../README.md']) {
+    await assert.rejects(discover(site, 'org/sdk', path, () => assert.fail('unexpected API call')), /repository-relative source path/);
+  }
+});

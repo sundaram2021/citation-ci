@@ -77,13 +77,22 @@ async function main() {
   console.log(values.json ? JSON.stringify({ summary, rows }, null, 2) : report);
   if (process.env.GITHUB_STEP_SUMMARY) {
     const escape = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-    const details = rows.filter(r=>!['pass','fixed'].includes(r.verdict)).slice(0,100).map(r=>{
+    const findings = rows.filter(r => !['pass','fixed'].includes(r.verdict));
+    const notice = 'Additional findings omitted. See the workflow log for the full list.\n';
+    let report = '## Citation CI\n\n' + summary + '\n\n';
+    let shown = 0;
+    for (const r of findings.slice(0, 100)) {
       const sources = (r.sources ?? []).slice(0,3).map(s=>`<a href="${escape(s.permalink).replaceAll('"','&quot;')}">${escape(s.repo+'/'+s.path)}:${s.line}</a>`);
-      return `<p><b>${r.verdict}</b> <code>${escape(r.path)}</code> — live: ${escape(r.production)}; preview: ${escape(r.preview)}` +
+      const entry = `<p><b>${r.verdict}</b> <code>${escape(r.path)}</code> — live: ${escape(r.production)}; preview: ${escape(r.preview)}` +
         (sources.length ? '<br>Published in: '+sources.join(', ') : '') +
         (r.verdict === 'regression' && r.preview === 'missing HTML anchor' ? '<br>Restore the anchor or redirect to its replacement.' : '') + '</p>';
-    });
-    await appendFile(process.env.GITHUB_STEP_SUMMARY, '## Citation CI\n\n'+summary+'\n\n'+details.join('\n').slice(0,100000)+'\n');
+      const reserve = shown + 1 < findings.length ? notice.length : 0;
+      if (report.length + entry.length + 1 + reserve > 100000) break;
+      report += entry + '\n';
+      shown++;
+    }
+    if (shown < findings.length) report += notice;
+    await appendFile(process.env.GITHUB_STEP_SUMMARY, report);
   }
   if (process.env.CITATION_COMMENT_FILE) {
     const findings = rows.filter(row => row.verdict === 'regression' || row.verdict === 'inconclusive');

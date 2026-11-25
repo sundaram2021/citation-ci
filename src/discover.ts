@@ -39,21 +39,24 @@ export async function discover(site: URL, repo: string, prefix = '', get = fetch
     if (!res.ok) throw new Error(`GitHub source request returned HTTP ${res.status} (${repo}); check repository access and API quota`);
     return res.json();
   }
+  // One trailing slash is valid for directories. An empty prefix selects the root.
+  if (prefix.startsWith('/') || prefix.includes('//')) throw new Error('Expected a repository-relative source path');
+  prefix = prefix.replace(/\/$/, '');
+  const parts = prefix ? prefix.split('/') : [];
+  if (parts.some(part => part === '.' || part === '..')) throw new Error('Expected a repository-relative source path');
   // Resolve the default branch once. All subsequent reads use immutable object IDs.
   const commit = await api('commits/HEAD');
   if (![commit.sha, commit.commit?.tree?.sha].every(s => typeof s === 'string' && /^[a-f0-9]{40}$/.test(s))) throw new Error('Invalid GitHub commit');
-  prefix = prefix.replace(/\/+$/, '');
   const markdown = /(?:\.md(?:own)?$|\.markdown$|(?:^|\/)readme$)/i;
-  if (prefix.split('/').some(p=>p==='..'||p==='.') || prefix.startsWith('/')) throw new Error('Expected a repository-relative source path');
   // Walk one tree per path component; a scoped scan never lists the rest of the repository.
   let treeSha = commit.commit.tree.sha;
   let files: Entry[] | undefined;
-  for (const [i,part] of (prefix ? prefix.split('/') : []).entries()) {
+  for (const [i,part] of parts.entries()) {
     const dir = await api(`git/trees/${treeSha}`);
     const match = dir.tree?.find((e: Entry)=>e.path===part);
     if (!match || dir.truncated) throw new Error(`Cannot resolve source path ${prefix}`);
     if (match.type==='tree') treeSha = match.sha;
-    else if (match.type==='blob' && match.mode.startsWith('100') && i===prefix.split('/').length-1 && markdown.test(prefix)) files=[{...match,path:prefix}];
+    else if (match.type==='blob' && match.mode.startsWith('100') && i===parts.length-1 && markdown.test(prefix)) files=[{...match,path:prefix}];
     else throw new Error(`Expected a Markdown file or directory: ${prefix}`);
   }
   if (!files) {
