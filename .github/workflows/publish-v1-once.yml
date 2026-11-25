@@ -1,0 +1,35 @@
+name: Publish approved v1 release
+on:
+  push:
+    branches: [release/publish-v1-once]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 598c67318ab4caf7b7f0e1309e7274c991ae055b
+          fetch-depth: 0
+      - name: Publish annotated tags and release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "598c67318ab4caf7b7f0e1309e7274c991ae055b"
+          test "$(git ls-remote origin refs/heads/main | cut -f1)" = "598c67318ab4caf7b7f0e1309e7274c991ae055b"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a v1.0.0 -m "Release v1.0.0"
+          git tag -a v1 -m "Release v1"
+          git push --atomic origin refs/tags/v1.0.0 refs/tags/v1
+          cat > "$RUNNER_TEMP/notes.md" <<'NOTES'
+          Citation CI compares published documentation links on production and preview deployments before merge. It checks server-rendered anchors, redirects, configured soft-404 pages and declared parent moves.
+
+          - Check Vercel previews for the exact commit, optionally with `vercel-protection-bypass`, or use the provider-neutral `deployment_status` workflow.
+          - Import analytics and AI citation inventories from CSV or TXT, or discover published links in GitHub Markdown, MDX and static HTML anchors with file and line attribution.
+          - Run the bundled zero-install Action with `sundaram2021/citation-ci@v1`. Choose report or enforce mode and optionally update a PR comment with findings.
+          NOTES
+          gh release create v1.0.0 --verify-tag --title "v1.0.0" --generate-notes --notes-file "$RUNNER_TEMP/notes.md"
