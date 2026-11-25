@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { appendFile } from 'node:fs/promises';
+import { appendFile, writeFile } from 'node:fs/promises';
 import { inspectDocument, site, verdict } from './check.ts';
 import { inventory } from './inventory.ts';
 import { discover } from './discover.ts';
@@ -84,6 +84,10 @@ async function main() {
         (r.verdict === 'regression' && r.preview === 'missing HTML anchor' ? '<br>Restore the anchor or redirect to its replacement.' : '') + '</p>';
     });
     await appendFile(process.env.GITHUB_STEP_SUMMARY, '## Citation CI\n\n'+summary+'\n\n'+details.join('\n').slice(0,100000)+'\n');
+  }
+  if (process.env.CITATION_COMMENT_FILE) {
+    const findings = rows.filter(row => row.verdict === 'regression' || row.verdict === 'inconclusive');
+    await writeFile(process.env.CITATION_COMMENT_FILE, JSON.stringify({summary, findings: findings.slice(0, 5)}));
   }
   if (process.env.GITHUB_OUTPUT) await appendFile(process.env.GITHUB_OUTPUT, 'comparison-complete=true\n');
   if (process.env.GITHUB_ACTIONS && (regressions || unknown)) {

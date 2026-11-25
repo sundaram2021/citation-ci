@@ -25,6 +25,20 @@ Already have a URL list? Replace `--source-repo` and `--source-path` with `--fil
 
 The workflow waits up to five minutes for the PR’s exact commit to have a ready preview. Open the `published-links` job summary to see findings. The workflow skips fork and Dependabot PRs.
 
+### Show findings in the PR conversation
+
+On a revision that includes PR comments, set `pr-comment: 'true'` under the Action’s `with` block. Grant the calling job these permissions:
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
+
+The first regression or inconclusive result creates a comment showing up to five affected paths, the production and preview results, and a link to the run. Later runs update the same comment for the workflow and job, including after repairs or setup errors. A clean first run stays quiet. Use one commenting check per job and the example workflow’s per-PR concurrency group to serialize updates.
+
+Comments default to off and run only on same-repository pull requests, skipping Dependabot. A comment permission error emits a warning. The existing enforce/report setting still determines the check result.
+
 ## Interpret the result
 
 | Result | Meaning |
