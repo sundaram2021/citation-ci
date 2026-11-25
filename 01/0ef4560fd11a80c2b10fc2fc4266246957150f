@@ -1,0 +1,39 @@
+src/vercel.ts
+  s_feefab37bca6c7::t_641b6f743f3536 6,8-9,19,22
+  s_feefab37bca6c7::t_54e0bcdc138658 1-5,7,10-18,20-21,23-31
+package.json
+  s_feefab37bca6c7::t_6a8bb26c41de1b 18-20
+test/discovery.test.mjs
+  s_feefab37bca6c7::t_887e7a033747d9 1-52
+test/published-check.test.mjs
+  s_feefab37bca6c7::t_a4686d1ce618ba 1-40
+src/check.ts
+  s_feefab37bca6c7::t_10a0c5405a0f2e 6-7
+src/discover.ts
+  s_feefab37bca6c7::t_83fdfa26769638 46-64
+  s_feefab37bca6c7::t_10a0c5405a0f2e 1-45,65-93
+src/cli.ts
+  s_feefab37bca6c7::t_54e0bcdc138658 5-7,9,14,18-19,21,23-24,41,47-48,59-67
+  s_feefab37bca6c7::t_641b6f743f3536 53-54
+  s_feefab37bca6c7::t_8504ecf454e3a3 68-74
+test/citations.test.mjs
+  s_feefab37bca6c7::t_a4686d1ce618ba 71
+package-lock.json
+  s_feefab37bca6c7::t_9326d606573ef2 12-14,25-48,58-83,90-141,153-719,749-788
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "010ef4560fd11a80c2b10fc2fc4266246957150f",
+  "prompts": {},
+  "sessions": {
+    "s_feefab37bca6c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_df1ff1721ffeSemEQ3vPC0eRui",
+        "model": "unknown"
+      },
+      "human_author": "Sundaram Kumar Jha <jhasundaram@outlook.com>"
+    }
+  }
+}
