@@ -57,6 +57,7 @@ function unknown(error: unknown): Finding {
 export type CheckPolicy = {
   parentMoves?: ReadonlyMap<string, string>;
   errorPageMarker?: string;
+  headers?: Record<string, string>;
 };
 
 // All citations in a group share the exact document URL, including its query.
@@ -75,7 +76,7 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
     for (let hop = 0; hop <= 8; hop++) {
       if (visited.has(current.href)) return all('broken', 'redirect loop');
       visited.add(current.href);
-      const res = await fetch(current, { redirect: 'manual', signal });
+      const res = await fetch(current, { redirect: 'manual', signal, headers: policy.headers });
       try {
         if ([301, 302, 303, 307, 308].includes(res.status)) {
           const location = res.headers.get('location');

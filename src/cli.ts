@@ -41,6 +41,10 @@ async function main() {
   const production = site(values.production);
   const preview = values.preview ? site(values.preview) : await previewForCommit(values['vercel-project']!, values.commit!, process.env.VERCEL_TOKEN, process.env.VERCEL_TEAM_ID);
   if (production.origin === preview.origin) throw new Error('Choose distinct production and preview origins');
+  const bypass = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+  if (bypass && (preview.protocol !== 'https:' || !/^[!-~]+$/.test(bypass)))
+    throw new Error('Vercel protection bypass requires an HTTPS preview and a valid header value');
+  const previewPolicy = bypass ? {...policy, headers: {'x-vercel-protection-bypass': bypass}} : policy;
   const citations = values.file ? await inventory(production, values.file) : await discover(production,values['source-repo']!,values['source-path']);
   const rows: { path: string; count: number; engines: string[]; sources?: Source[]; verdict: ReturnType<typeof verdict>;
     production: string; preview: string }[] = [];
@@ -55,12 +59,12 @@ async function main() {
   async function worker() {
     for (const indexes of pending) {
       const urls = indexes.map(i => citations[i].url);
-      const [live, next] = await Promise.all([inspectDocument(urls, production, policy), inspectDocument(urls, preview, policy)]);
+      const [live, next] = await Promise.all([inspectDocument(urls, production, policy), inspectDocument(urls, preview, previewPolicy)]);
       for (const [position, index] of indexes.entries()) {
         const {url, count, engines} = citations[index];
         const path = url.pathname + (url.search ? '?[redacted]' : '') + url.hash;
         rows[index] = {path, count, engines: [...engines].sort(), sources: citations[index].sources, verdict: verdict(live[position], next[position]),
-          production: live[position].detail, preview: next[position].detail};
+          production: live[position].detail, preview: bypass ? next[position].detail.replaceAll(bypass, '[redacted]') : next[position].detail};
       }
     }
   }
@@ -69,7 +73,7 @@ async function main() {
   rows.sort((a,b)=>rank[a.verdict]-rank[b.verdict] || b.count-a.count);
   const regressions = rows.filter(row => row.verdict === 'regression').length;
   const unknown = rows.filter(row => row.verdict === 'inconclusive').length;
-  const summary = rows.length + ' checked, ' + regressions + ' new regressions, ' + unknown + ' inconclusive';
+  const summary = rows.length + ' checked, ' + regressions + ' new regression' + (regressions === 1 ? '' : 's') + ', ' + unknown + ' inconclusive';
   const lines = rows.map(row => ('[' + row.verdict + ']' + '  ' + row.path + '  | live: ' + row.production +
     '  | preview: ' + row.preview + '  | citations: ' + row.count + ' ' + row.engines.join(', ') +
     (row.sources?.length ? ' | published in: '+row.sources[0].permalink : '')).trimEnd().replace(/[\u0000-\u001f\u007f]/g, ' '));

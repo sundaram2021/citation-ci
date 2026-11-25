@@ -25,6 +25,7 @@ export async function previewForCommit(project: string, sha: string, token: stri
         return new URL(`https://${d.url}`);
       }
     }
+    if (Date.now() >= deadline) break;
     await wait();
   } while (Date.now() < deadline);
   throw new Error(`No ready Vercel preview for ${sha} within five minutes`);

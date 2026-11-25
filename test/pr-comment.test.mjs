@@ -6,7 +6,7 @@ const env = {GITHUB_API_URL:'https://api.github.com', GITHUB_SERVER_URL:'https:/
   GITHUB_REPOSITORY:'org/docs', GITHUB_WORKFLOW:'Links', GITHUB_JOB:'docs', GITHUB_RUN_ID:'123'};
 const pr = {number:7, head:{sha:'a'.repeat(40), repo:{full_name:'org/docs'}}};
 const clean = {summary:'1 checked, 0 new regressions, 0 inconclusive', findings:[]};
-const broken = {summary:'1 checked, 1 new regression', findings:[
+const broken = {summary:'1 checked <regression> & review', findings:[
   {verdict:'regression', path:'/docs#keys', production:'HTTP 200', preview:'missing HTML anchor'}
 ]};
 
@@ -15,6 +15,10 @@ test('PR comment lifecycle, ownership, pagination and stale runs', async () => {
   const writes = [];
   let current = pr.head.sha;
   async function api(url, options) {
+    const headers = new Headers(options.headers);
+    assert.equal(headers.get('user-agent'),'citation-ci');
+    assert.equal(headers.get('accept'),'application/vnd.github+json');
+    assert.equal(headers.get('x-github-api-version'),'2022-11-28');
     const path = new URL(url);
     if (options.method === 'GET') {
       if (path.pathname.endsWith('/pulls/7')) return Response.json({head:{sha:current}});
@@ -34,6 +38,7 @@ test('PR comment lifecycle, ownership, pagination and stale runs', async () => {
   await run(clean);
   await run(broken);
   assert.match(comments.at(-1).body, /missing HTML anchor/);
+  assert.match(comments.at(-1).body, /&lt;regression&gt; &amp; review/);
   comments[0].body = comments.at(-1).body;
   await run(broken);
   await run(clean);

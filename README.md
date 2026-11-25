@@ -14,16 +14,41 @@ npm run check -- --production "$DOCS_ORIGIN" --preview "$PREVIEW_ORIGIN" \
 
 The scan reads the source repo’s default branch. Use a directory as `--source-path` to check several Markdown files. Only absolute links to the production origin are checked. Set `GH_SOURCE_TOKEN` if the repo is private or you hit GitHub’s API limit.
 
-Already have a URL list? Replace `--source-repo` and `--source-path` with `--file citations.txt` (one URL per line) or `--file citations.csv` (`url` column required; `engine` and `count` optional). Add `--json` for structured output.
+Discovery also reads `.mdx` and `.mkd` files and static HTML anchors in Markdown. Computed JSX links and code samples are outside the scan.
+
+### Import traffic or AI citations
+
+Use `--file export.csv` instead of `--source-repo`. For Google Search Console, export the Pages table. For Vercel Analytics, Plausible or PostHog, export a page breakdown with a URL or path column and a visit or view count. Headers are case-insensitive and whitespace is trimmed. The first matching name in each row below takes priority.
+
+| Field | Accepted column names |
+|---|---|
+| Page (required) | url, page, top pages, landing page, path |
+| Count (defaults to 1) | count, clicks, visits, views, pageviews, impressions |
+| Attribution (optional) | engine, source, referrer |
+
+```csv
+Landing Page,Visits,Source
+/docs/auth#keys,"1,234",support
+```
+
+For a list from AI answers or support replies, use `--file citations.txt` with one URL per line. Blank lines and lines beginning with `#` are ignored. Both formats accept absolute URLs on the production origin and paths beginning with a single slash. Add `--json` for structured results.
 
 ## Run on Vercel pull requests
 
-1. Enable Vercel’s Git integration for the docs repo. Production and preview pages must be accessible to the runner without signing in.
+1. Enable Vercel’s Git integration for the docs repo. Production must be readable by the runner. For a protected preview, supply the optional bypass input below.
 2. Copy [the PR workflow](examples/workflows/vercel-pr.yml) to `.github/workflows/published-links.yml` in your docs repository.
 3. In GitHub Actions settings, add variables `DOCS_PRODUCTION_ORIGIN` and `VERCEL_PROJECT_ID`, plus `VERCEL_TEAM_ID` for a team-owned project. Add `VERCEL_TOKEN` as a secret with access to read deployments.
 4. If the links live in another repo, set `LINK_SOURCE_REPO` to its `owner/repo` and adjust `source-path` in the workflow. For another private repo, pass a token with read access to its contents as `source-token`.
 
 The workflow waits up to five minutes for the PR’s exact commit to have a ready preview. Open the `published-links` job summary to see findings. The workflow skips fork and Dependabot PRs.
+
+Vercel discovery accepts only a single deployment hostname ending in `.vercel.app` from the API. For a protected deployment, set `vercel-protection-bypass` to your automation bypass secret. The CLI reads `VERCEL_AUTOMATION_BYPASS_SECRET` from the environment. Only configure it for a trusted HTTPS preview. The checker sends it in the `x-vercel-protection-bypass` header and stops at cross-origin redirects.
+
+### Other deployment providers
+
+Copy [the deployment status workflow](examples/workflows/deployment-preview.yml) for providers such as Netlify, Cloudflare Pages, Render or Vercel that publish GitHub deployment statuses. Configure the integration to supply the preview **origin** as its environment URL. The workflow compares each successful non-production deployment with `DOCS_PRODUCTION_ORIGIN`. It reads the published README without checking out deployment code and uses no preview credentials.
+
+Both examples use report mode and reference the planned `v1` release tag. For strict pinning, replace `v1` with a full commit SHA from `main` that includes the bundled Action. The Action runs the committed Node 24 bundle without installing npm packages. For development, `npm run check` runs the TypeScript source and `npm run build` regenerates the bundle.
 
 ### Show findings in the PR conversation
 

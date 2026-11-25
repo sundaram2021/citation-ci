@@ -28,6 +28,9 @@ inputs:
   vercel-token:
     description: Token to read deployments on Vercel
     required: false
+  vercel-protection-bypass:
+    description: Optional Vercel automation bypass secret for the trusted preview origin
+    required: false
   vercel-team:
     description: Team ID for a team-owned Vercel project
     required: false
@@ -53,9 +56,6 @@ runs:
     - uses: actions/setup-node@v4
       with:
         node-version: '24'
-    - name: Install pinned checker dependencies
-      shell: bash
-      run: npm ci --prefix "$GITHUB_ACTION_PATH" --omit=dev --ignore-scripts --no-audit --no-fund
     - name: Compare citation destinations
       id: compare
       shell: bash
@@ -69,6 +69,7 @@ runs:
         SOURCE_REPO: ${{ inputs.source-repo }}
         SOURCE_PATH: ${{ inputs.source-path }}
         GH_SOURCE_TOKEN: ${{ inputs.source-token }}
+        VERCEL_AUTOMATION_BYPASS_SECRET: ${{ inputs.vercel-protection-bypass }}
         VERCEL_PROJECT: ${{ inputs.vercel-project }}
         VERCEL_TEAM_ID: ${{ inputs.vercel-team }}
         VERCEL_TOKEN: ${{ inputs.vercel-token }}
@@ -88,7 +89,7 @@ runs:
           echo "comment-file=$CITATION_COMMENT_FILE" >> "$GITHUB_OUTPUT"
         fi
         code=0
-        node "$GITHUB_ACTION_PATH/src/cli.ts" "${args[@]}" || code=$?
+        node "$GITHUB_ACTION_PATH/dist/cli.mjs" "${args[@]}" || code=$?
         printf 'exit-code=%s\n' "$code" >> "$GITHUB_OUTPUT"
     - name: Update PR comment
       if: steps.compare.outputs.comment-file != ''
