@@ -56,3 +56,33 @@ test('invalid source paths are rejected before discovery makes any requests', as
     await assert.rejects(discover(site, 'org/sdk', path, () => assert.fail('unexpected API call')), /repository-relative source path/);
   }
 });
+
+test('discovers HTML anchors in MDX and MKD with original line numbers and API headers', async () => {
+  const body = ['# Docs', '', '<div align="center">', ' <a href="https://docs.example/badge?a=1&amp;b=2">badge</a>',
+    '</div>', '', 'Inline <a href="https://docs.example/inline">link</a>.', '',
+    '`<a href="https://docs.example/code">code</a>`', '', '```html', '<a href="https://docs.example/fenced">', '```',
+    '', '<table><tr><td><a href="https://docs.example/table">table</a></td></tr></table>'].join('\n');
+  const rows = await discover(site, 'org/sdk', '', async (url,opts) => {
+    const headers = new Headers(opts.headers);
+    assert.equal(headers.get('user-agent'),'citation-ci'); assert.equal(headers.get('x-github-api-version'),'2022-11-28');
+    if (url.endsWith('/HEAD')) return Response.json({sha,commit:{tree:{sha:tree}}});
+    if (url.includes('/trees/')) return Response.json({tree:[entry('guide.mdx'),entry('guide.mkd')]});
+    return Response.json({encoding:'base64',content:Buffer.from(body).toString('base64')});
+  });
+  assert.deepEqual(rows.map(r => [r.url.pathname+r.url.search,r.sources.map(s=>[s.path,s.line])]), [
+    ['/badge?a=1&b=2',[['guide.mdx',4],['guide.mkd',4]].sort()],
+    ['/inline',[['guide.mdx',7],['guide.mkd',7]].sort()],
+    ['/table',[['guide.mdx',15],['guide.mkd',15]].sort()]
+  ]);
+});
+
+test('expired Vercel poll skips its trailing wait and rejects non-Vercel hostnames', async t => {
+  let now = 0;
+  t.mock.method(Date,'now',()=>now);
+  await assert.rejects(previewForCommit('prj_1',sha,'token',undefined,async () => {
+    now = 300000;
+    return Response.json({deployments:[]});
+  }, async () => assert.fail('unexpected trailing wait')), /within five minutes/);
+  await assert.rejects(previewForCommit('prj_1',sha,'token',undefined,async () =>
+    Response.json({deployments:[{...deployment,url:'test.vercel.app.example.com'}]})), /hostname/);
+});

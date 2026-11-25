@@ -1,6 +1,7 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import { gfmAutolinkLiteral } from 'micromark-extension-gfm-autolink-literal';
 import { gfmAutolinkLiteralFromMarkdown } from 'mdast-util-gfm-autolink-literal';
+import { parseFragment, type DefaultTreeAdapterTypes } from 'parse5';
 import type { RootContent, Root } from 'mdast';
 import type { Citation } from './check.ts';
 
@@ -19,12 +20,25 @@ export function links(markdown: string, site: URL) {
   const defs = new Map<string, string>();
   for (const n of nodes(root)) if (n.type === 'definition' && !defs.has(n.identifier)) defs.set(n.identifier, n.url);
   const found: {url: URL; line: number}[] = [];
-  for (const n of nodes(root)) {
-    const raw = n.type === 'link' ? n.url : n.type === 'linkReference' ? defs.get(n.identifier) : undefined;
-    if (!raw || !URL.canParse(raw)) continue;
+  function add(raw: string | undefined, line: number) {
+    if (!raw || !URL.canParse(raw)) return;
     const url = new URL(raw);
-    if (url.origin === site.origin && !url.username && !url.password && n.position)
-      found.push({url, line: n.position.start.line});
+    if (url.origin === site.origin && !url.username && !url.password) found.push({url, line});
+  }
+  for (const n of nodes(root)) {
+    if (!n.position) continue;
+    const line = n.position.start.line;
+    if (n.type === 'link') add(n.url, line);
+    if (n.type === 'linkReference') add(defs.get(n.identifier), line);
+    if (n.type !== 'html') continue;
+    const fragment = parseFragment(n.value, {sourceCodeLocationInfo: true});
+    const stack: DefaultTreeAdapterTypes.Node[] = [fragment];
+    while (stack.length) {
+      const el = stack.pop()!;
+      if ('tagName' in el && el.tagName === 'a' && el.sourceCodeLocation)
+        add(el.attrs.find(attr => attr.name === 'href')?.value, line + el.sourceCodeLocation.startLine - 1);
+      if ('childNodes' in el) for (let i = el.childNodes.length - 1; i >= 0; i--) stack.push(el.childNodes[i]);
+    }
   }
   return found;
 }
@@ -32,7 +46,7 @@ export function links(markdown: string, site: URL) {
 type Entry = {type: string; mode: string; path: string; sha: string; size: number};
 export async function discover(site: URL, repo: string, prefix = '', get = fetch): Promise<Citation[]> {
   if (!/^[\w-]+\/[\w.-]+$/.test(repo) || repo.endsWith('/.') || repo.endsWith('/..')) throw new Error('Expected source repository owner/name');
-  const headers = new Headers({accept: 'application/vnd.github+json'});
+  const headers = new Headers({accept: 'application/vnd.github+json', 'user-agent': 'citation-ci', 'x-github-api-version': '2022-11-28'});
   if (process.env.GH_SOURCE_TOKEN) headers.set('authorization', `Bearer ${process.env.GH_SOURCE_TOKEN}`);
   async function api(path: string) {
     const res = await get(`https://api.github.com/repos/${repo}/${path}`, {headers, redirect:'error', signal: AbortSignal.timeout(20000)});
@@ -47,7 +61,7 @@ export async function discover(site: URL, repo: string, prefix = '', get = fetch
   // Resolve the default branch once. All subsequent reads use immutable object IDs.
   const commit = await api('commits/HEAD');
   if (![commit.sha, commit.commit?.tree?.sha].every(s => typeof s === 'string' && /^[a-f0-9]{40}$/.test(s))) throw new Error('Invalid GitHub commit');
-  const markdown = /(?:\.md(?:own)?$|\.markdown$|(?:^|\/)readme$)/i;
+  const markdown = /(?:\.md(?:own|x)?$|\.mkd$|\.markdown$|(?:^|\/)readme$)/i;
   // Walk one tree per path component; a scoped scan never lists the rest of the repository.
   let treeSha = commit.commit.tree.sha;
   let files: Entry[] | undefined;

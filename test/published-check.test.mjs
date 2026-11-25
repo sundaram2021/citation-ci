@@ -14,6 +14,8 @@ test('PR check ties a missing preview anchor to the published source, not to the
   // Intercept only transport. Unexpected requests or leaked credentials fail the run.
   const transport = `globalThis.fetch = async (input,opts) => {
     const u = new URL(input); const auth = new Headers(opts.headers).get('authorization');
+    const bypass = new Headers(opts.headers).get('x-vercel-protection-bypass');
+    if (bypass !== (u.hostname === 'test-build.vercel.app' ? 'bypass-fixture-123' : null)) throw new Error('incorrect bypass scope');
     if (u.hostname === 'api.vercel.com' && auth === 'Bearer v' && u.searchParams.get('sha') === '${head}')
       return Response.json({deployments:[{target:null,meta:{githubCommitSha:'${head}'},projectId:'prj_test',readyState:'READY',url:'test-build.vercel.app'}]});
     if (u.hostname === 'api.github.com' && auth === 'Bearer g') {
@@ -28,6 +30,7 @@ test('PR check ties a missing preview anchor to the published source, not to the
   const p = spawnSync(process.execPath,['--import','data:text/javascript;base64,'+Buffer.from(transport).toString('base64'),
     'src/cli.ts','--source-repo','org/sdk','--source-path','README.md','--production','https://docs.test',
     '--vercel-project','prj_test','--commit',head,'--json'], {encoding:'utf8',env:{...process.env,
+      GITHUB_ACTIONS:'true', CITATION_COMMENT_FILE:join(dir,'comment'), VERCEL_AUTOMATION_BYPASS_SECRET:'bypass-fixture-123',
       GH_SOURCE_TOKEN:'g',VERCEL_TOKEN:'v',GITHUB_OUTPUT:output,GITHUB_STEP_SUMMARY:summary}});
   assert.equal(p.status,1,p.stderr);
   const {rows} = JSON.parse(p.stdout);
@@ -35,7 +38,8 @@ test('PR check ties a missing preview anchor to the published source, not to the
   const link = `https://github.com/org/sdk/blob/${published}/README.md#L1`;
   assert.equal(rows[0].sources[0].permalink,link);
   const report = await readFile(summary,'utf8');
-  assert.ok(report.includes(`<a href="${link}"`)); assert.doesNotMatch(report+p.stdout,/hidden/);
+  assert.ok(report.includes(`<a href="${link}"`)); assert.match(report, /1 new regression, /);
+  assert.doesNotMatch(report+p.stdout+p.stderr+await readFile(join(dir,'comment'),'utf8'), /hidden|bypass-fixture-123/);
   assert.match(await readFile(output,'utf8'),/comparison-complete=true/);
 });
 
@@ -57,4 +61,30 @@ test('a large job summary only includes complete findings and an omission notice
   assert.ok(entries.every(line => line.endsWith('</p>')));
   assert.ok(report.length <= 100000);
   assert.match(report, /additional findings omitted/i);
+});
+
+test('standalone bundled CLI matches source output without a package installation', async t => {
+  const {copyFile} = await import('node:fs/promises');
+  const dir = await mkdtemp(join(tmpdir(),'citation-bundle-'));
+  t.after(()=>rm(dir,{recursive:true,force:true}));
+  const inventory = join(dir,'traffic.csv');
+  const bundle = join(dir,'cli.mjs');
+  await copyFile('dist/cli.mjs',bundle);
+  await writeFile(inventory,'Top Pages,Clicks\n/guide?q=hidden#keys,"1,234"');
+  const transport = `globalThis.fetch = async (input, opts) => {
+    const url = new URL(input);
+    const preview = url.hostname === 'preview.test';
+    const header = new Headers(opts.headers).get('x-vercel-protection-bypass');
+    if (header !== (preview ? 'fixture-bypass-secret' : null)) throw new Error('wrong scope');
+    if (preview && url.pathname === '/guide') return Response.redirect(new URL('/replacement',url),302);
+    return new Response(preview ? 'missing' : '<h2 id="keys">keys</h2>',{headers:{'content-type':'text/html'}});
+  }`;
+  const run = entry => spawnSync(process.execPath,['--import','data:text/javascript;base64,'+Buffer.from(transport).toString('base64'),
+    entry,'--production','https://docs.test','--preview','https://preview.test','--file',inventory,'--json'],
+    {encoding:'utf8',env:{...process.env,VERCEL_AUTOMATION_BYPASS_SECRET:'fixture-bypass-secret'}});
+  const source = run('src/cli.ts'), built = run(bundle);
+  assert.equal(source.status,1,source.stderr); assert.equal(built.status,1,built.stderr);
+  assert.deepEqual(JSON.parse(built.stdout),JSON.parse(source.stdout));
+  assert.equal(JSON.parse(built.stdout).rows[0].count,1234);
+  assert.doesNotMatch(built.stdout+built.stderr,/hidden|fixture-bypass-secret/);
 });

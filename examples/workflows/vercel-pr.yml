@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check links published on the default branch
-        uses: sundaram2021/citation-ci@9f75b6bc0e7a21719d6ba105152ecf0a2a880c6e
+        uses: sundaram2021/citation-ci@v1 # Release placeholder: pin a full SHA containing the bundled Action before use.
         with:
           production: ${{ vars.DOCS_PRODUCTION_ORIGIN }}
           source-repo: ${{ vars.LINK_SOURCE_REPO || github.repository }}
@@ -25,4 +25,5 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           commit: ${{ github.event.pull_request.head.sha }}
           mode: report
+          # vercel-protection-bypass: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
           # pr-comment: 'true'

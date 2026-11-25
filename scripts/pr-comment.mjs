@@ -13,7 +13,8 @@ export async function publish(env, event, report, request = fetch) {
   async function api(path, method = 'GET', body) {
     const response = await request(base + path, {
       method, redirect: 'error', signal: AbortSignal.timeout(10000),
-      headers: {authorization: 'Bearer ' + env.GH_TOKEN, 'content-type': 'application/json'},
+      headers: {authorization: 'Bearer ' + env.GH_TOKEN, 'content-type': 'application/json',
+        accept: 'application/vnd.github+json', 'user-agent': 'citation-ci', 'x-github-api-version': '2022-11-28'},
       body: body === undefined ? undefined : JSON.stringify({body})
     });
     if (!response.ok) throw new Error('GitHub comment API returned HTTP ' + response.status);
@@ -33,7 +34,7 @@ export async function publish(env, event, report, request = fetch) {
   const current = await api('/pulls/' + pr.number);
   if (current.head.sha !== pr.head.sha) return;
 
-  const lines = [marker, '### Citation CI', '', report?.summary ?? 'Comparison incomplete. See the workflow run for the error.'];
+  const lines = [marker, '### Citation CI', '', report ? html(report.summary) : 'Comparison incomplete. See the workflow run for the error.'];
   for (const row of report?.findings ?? []) {
     lines.push('', '<p><b>' + html(row.verdict) + '</b> <code>' + html(row.path) + '</code><br>Production: ' +
       html(row.production) + '<br>Preview: ' + html(row.preview) + '</p>');

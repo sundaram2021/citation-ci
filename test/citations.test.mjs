@@ -189,3 +189,55 @@ test('a malformed UTF-8 byte outside a heading preserves usable anchors', async 
   const urls = ['keys','absent'].map(id => new URL('/docs#' + id, origin));
   assert.deepEqual((await inspectDocument(urls, origin)).map(r => r.state), ['ok','broken']);
 });
+
+test('preview bypass stays on authorized same-origin hops', async t => {
+  const headers = {'x-vercel-protection-bypass':'fixture-bypass'};
+  const production = new URL('https://docs.test'), preview = new URL('https://preview.test');
+  const citation = new URL('/guide#keys', production);
+  const calls = [];
+  t.mock.method(globalThis, 'fetch', async (url, options) => {
+    calls.push([url.origin, url.pathname, new Headers(options.headers).get('x-vercel-protection-bypass')]);
+    assert.equal(options.redirect, 'manual');
+    if (url.origin === production.origin) return new Response('OK');
+    const location = url.pathname === '/guide' ? '/moved' : 'https://external.test/';
+    return new Response(null, {status:302, headers:{location}});
+  });
+  await inspectDocument([citation], production);
+  const [row] = await inspectDocument([citation], preview, {headers});
+  assert.equal(row.state, 'unknown');
+  assert.deepEqual(calls, [[production.origin,'/guide',null], [preview.origin,'/guide','fixture-bypass'],
+    [preview.origin,'/moved','fixture-bypass']]);
+});
+
+test('analytics CSV aliases, counts, source labels and primary column precedence', async () => {
+  const file = join(dir, 'analytics.csv');
+  for (const [url, count] of [[' PAGE ', 'CLICKS'], ['Top Pages', 'Visits'], ['LANDING PAGE', 'Views'],
+    ['Path', 'PageViews'], ['URL','Impressions']]) {
+    await writeFile(file, '"' + url + '",' + count + ',ReFeRrEr\n/docs#keys,"1,234",https://ref.test/?q=private');
+    const [row] = await inventory(origin,file);
+    assert.equal(row.url.href, new URL('/docs#keys',origin).href);
+    assert.equal(row.count,1234);
+    assert.deepEqual([...row.engines], ['https://ref.test/?[redacted]']);
+  }
+  await writeFile(file,'page,url,views,count,source,engine\n/other,/docs,9,3,support,sdk');
+  const [row] = await inventory(origin,file);
+  assert.equal(row.url.pathname,'/docs'); assert.equal(row.count,3); assert.deepEqual([...row.engines],['sdk']);
+  for (const invalid of ['0','-1','1.2','1,23','abc','9007199254740992']) {
+    await writeFile(file,'path,views\n/docs,"'+invalid+'"');
+    await assert.rejects(inventory(origin,file), /Invalid citation count/);
+  }
+  await writeFile(file,'views,source\n1,foo');
+  await assert.rejects(inventory(origin,file), /No recognized URL column/);
+});
+
+test('text inventories ignore comments and constrain relative links to the production origin', async () => {
+  const file = join(dir,'list.txt');
+  await writeFile(file,'  # shared links\n\n/docs?q=v#keys\n');
+  const [row] = await inventory(origin,file);
+  assert.equal(row.url.href,new URL('/docs?q=v#keys',origin).href);
+  for (const bad of ['//'+origin.host+'/docs', '/\\\\other.test/docs', 'https://other.test/docs',
+    'http://user:pass@'+origin.host+'/docs','docs/relative']) {
+    await writeFile(file,bad);
+    await assert.rejects(inventory(origin,file), /Invalid citation URL|outside the production origin/);
+  }
+});
