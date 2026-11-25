@@ -1,0 +1,23 @@
+README.md
+  s_feefab37bca6c7::t_3efb7b0e0e2088 22
+  s_feefab37bca6c7::t_f0cc34305a1db5 3,5,7,11-12,15,17,19,21,23-24,26,28,32-36,38,40
+examples/workflows/vercel-pr.yml
+  s_feefab37bca6c7::t_3efb7b0e0e2088 15
+  s_feefab37bca6c7::t_83fdfa26769638 1-14,16-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd30f903f773421116a4040d77673ca814a7a942",
+  "prompts": {},
+  "sessions": {
+    "s_feefab37bca6c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_df1ff1721ffeSemEQ3vPC0eRui",
+        "model": "unknown"
+      },
+      "human_author": "Sundaram Kumar Jha <jhasundaram@outlook.com>"
+    }
+  }
+}
