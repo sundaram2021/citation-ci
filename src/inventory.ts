@@ -2,6 +2,24 @@ import { readFile } from 'node:fs/promises';
 import { parse } from 'csv-parse/sync';
 import type { Citation } from './check.ts';
 
+function sourceLabel(label: string, site: URL) {
+  let url: URL;
+  let prefix: string;
+  if (URL.canParse(label)) {
+    url = new URL(label);
+    prefix = url.protocol + (url.host ? '//' + url.host : '');
+  } else if (label.startsWith('//') && URL.canParse('https:' + label)) {
+    url = new URL('https:' + label);
+    prefix = '//' + url.host;
+  } else if (label.startsWith('/') && !label.startsWith('//') && URL.canParse(label, site)) {
+    url = new URL(label, site);
+    prefix = '';
+  } else return label;
+
+  if (url.username || url.password) throw new Error('Invalid credentialed source URL');
+  return url.search ? prefix + url.pathname + '?[redacted]' + url.hash : label;
+}
+
 export async function inventory(site: URL, file: string): Promise<Citation[]> {
   const entries = new Map<string, Citation>();
   function add(raw: string, engine = '', count = 1) {
@@ -39,13 +57,7 @@ export async function inventory(site: URL, file: string): Promise<Citation[]> {
     for (const row of rows) {
       const value = row[count]?.trim() || '1';
       if (!/^(?:\d+|\d{1,3}(?:,\d{3})+)$/.test(value)) throw new Error('Invalid citation count');
-      let label = row[source]?.trim() ?? '';
-      if (URL.canParse(label) || label.startsWith('/')) {
-        const referrer = new URL(label, site);
-        if (referrer.username || referrer.password) throw new Error('Invalid credentialed source URL');
-        if (referrer.search) label = (label.startsWith('/') ? '' : referrer.origin) + referrer.pathname + '?[redacted]' + referrer.hash;
-      }
-      add(row[url].trim(), label, Number(value.replaceAll(',', '')));
+      add(row[url].trim(), sourceLabel(row[source]?.trim() ?? '', site), Number(value.replaceAll(',', '')));
     }
   } else {
     for (const line of data.split(/\r?\n/)) {

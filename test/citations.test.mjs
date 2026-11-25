@@ -241,3 +241,23 @@ test('text inventories ignore comments and constrain relative links to the produ
     await assert.rejects(inventory(origin,file), /Invalid citation URL|outside the production origin/);
   }
 });
+
+test('referrer labels preserve URL form, redact query values and reject credentials', async () => {
+  const file = join(dir,'referrers.csv');
+  for (const column of ['referrer','source']) {
+    for (const [input,expected] of [
+      ['//bad host','//bad host'],
+      ['//ref.test/path?secret=1#part','//ref.test/path?[redacted]#part'],
+      ['/path?secret=1','/path?[redacted]'],
+      ['https://ref.test/path?secret=1','https://ref.test/path?[redacted]'],
+    ]) {
+      await writeFile(file,'url,' + column + '\n/docs,' + input);
+      const [row] = await inventory(origin,file);
+      assert.deepEqual([...row.engines],[expected]);
+    }
+    for (const input of ['//user:pass@ref.test/path','https://user@ref.test/path']) {
+      await writeFile(file,'url,' + column + '\n/docs,' + input);
+      await assert.rejects(inventory(origin,file), /Invalid credentialed source URL/);
+    }
+  }
+});

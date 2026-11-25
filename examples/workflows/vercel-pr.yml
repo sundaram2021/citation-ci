@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check links published on the default branch
-        uses: sundaram2021/citation-ci@a6601c4535345eed670c96259c2956b4635860c2 # Bundled revision; v1 after release.
+        uses: sundaram2021/citation-ci@v1 # Replace with a full commit SHA from main for strict pinning
         with:
           production: ${{ vars.DOCS_PRODUCTION_ORIGIN }}
           source-repo: ${{ vars.LINK_SOURCE_REPO || github.repository }}

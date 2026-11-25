@@ -12,7 +12,7 @@
     "test": "node --test test/*.test.mjs",
     "demo": "node examples/demo.mjs",
     "typecheck": "tsc",
-    "build": "esbuild src/cli.ts --bundle --platform=node --target=node24 --format=esm --outfile=dist/cli.mjs"
+    "build": "esbuild src/cli.ts --bundle --minify --platform=node --target=node24 --format=esm --outfile=dist/cli.mjs"
   },
   "dependencies": {
     "csv-parse": "7.0.3",

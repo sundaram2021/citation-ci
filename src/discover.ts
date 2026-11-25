@@ -14,7 +14,54 @@ function* nodes(root: Root): Generator<RootContent> {
   }
 }
 
-export function links(markdown: string, site: URL) {
+// Walk balanced braces without interpreting braces inside JS strings or comments.
+function expressionEnd(text: string, start: number) {
+  let depth = 1;
+  let quote = '';
+  for (let i = start + 1; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === '\\') i++;
+      else if (c === quote) quote = '';
+    } else if (c === '"' || c === "'" || c === '`') quote = c;
+    else if (text.startsWith('/*', i)) {
+      const end = text.indexOf('*/', i + 2);
+      if (end < 0) break;
+      i = end + 1;
+    } else if (text.startsWith('//', i)) {
+      const end = text.indexOf('\n', i + 2);
+      if (end < 0) break;
+      i = end;
+    } else if (c === '{') depth++;
+    else if (c === '}' && --depth === 0) return i + 1;
+  }
+  return text.length;
+}
+
+function maskMdx(markdown: string) {
+  const syntax = /^(?:import|export)\b(?=[ \t{"'*(])[^\r\n]*|\\[\\{}]|\{/gm;
+  if (!syntax.test(markdown)) return markdown;
+  syntax.lastIndex = 0;
+  // Use Markdown's own code boundaries, including nested and variable-length fences.
+  const code = [...nodes(fromMarkdown(markdown))].filter(n => n.type === 'code' || n.type === 'inlineCode');
+  let region = 0, copied = 0;
+  const chunks: string[] = [];
+  for (let hit; (hit = syntax.exec(markdown));) {
+    while (region < code.length && code[region].position!.end.offset! <= hit.index) region++;
+    if (region < code.length && code[region].position!.start.offset! <= hit.index) {
+      syntax.lastIndex = code[region].position!.end.offset!;
+      continue;
+    }
+    if (hit[0].startsWith('\\')) continue;
+    if (hit[0] === '{') syntax.lastIndex = expressionEnd(markdown, hit.index);
+    chunks.push(markdown.slice(copied, hit.index), markdown.slice(hit.index, syntax.lastIndex).replace(/[^\r\n]/g, ' '));
+    copied = syntax.lastIndex;
+  }
+  return chunks.join('') + markdown.slice(copied);
+}
+
+export function links(markdown: string, site: URL, {mdx = false} = {}) {
+  if (mdx) markdown = maskMdx(markdown);
   const root = fromMarkdown(markdown, {extensions: [gfmAutolinkLiteral()],
     mdastExtensions: [gfmAutolinkLiteralFromMarkdown()]});
   const defs = new Map<string, string>();
@@ -82,17 +129,25 @@ export async function discover(site: URL, repo: string, prefix = '', get = fetch
   if (files.length > 300 || files.some(f => f.size > 1024*1024) || files.reduce((n,f)=>n+f.size,0)>16*1024*1024)
     throw new Error('Markdown scan exceeds budget; narrow --source-path or use --file');
   const entries = new Map<string,Citation>();
+  const blobs = new Map<string, Promise<string>>();
   const cache = new Map<string, Promise<ReturnType<typeof links>>>();
   const pending = files.values();
   async function worker() {
     for (const f of pending) {
-      let parsed = cache.get(f.sha);
+      const mdx = /\.mdx$/i.test(f.path);
+      const key = f.sha + (mdx ? ':mdx' : ':md');
+      let parsed = cache.get(key);
       if (!parsed) {
-        parsed = api(`git/blobs/${f.sha}`).then(b => {
-          if (b.encoding !== 'base64' || typeof b.content !== 'string') throw new Error('Invalid GitHub blob');
-          return links(Buffer.from(b.content,'base64').toString('utf8'),site);
-        });
-        cache.set(f.sha,parsed);
+        let blob = blobs.get(f.sha);
+        if (!blob) {
+          blob = api(`git/blobs/${f.sha}`).then(b => {
+            if (b.encoding !== 'base64' || typeof b.content !== 'string') throw new Error('Invalid GitHub blob');
+            return Buffer.from(b.content,'base64').toString('utf8');
+          });
+          blobs.set(f.sha, blob);
+        }
+        parsed = blob.then(body => links(body, site, {mdx}));
+        cache.set(key, parsed);
       }
       for (const {url,line} of await parsed) {
         const item = entries.get(url.href) ?? {url,count:0,engines:new Set<string>(),sources:[]};
