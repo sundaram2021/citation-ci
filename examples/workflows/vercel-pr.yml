@@ -2,6 +2,8 @@ name: Published documentation links
 on: pull_request
 permissions:
   contents: read
+  # Uncomment together with pr-comment below to publish findings on the PR.
+  # pull-requests: write
 concurrency:
   group: published-links-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -12,7 +14,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check links published on the default branch
-        uses: sundaram2021/citation-ci@c04fd2410bd37bc59da2cd259b79e45d0d0d47e4
+        uses: sundaram2021/citation-ci@eeb9f90c60bed4774ee11d77b04057f3058c33f9
         with:
           production: ${{ vars.DOCS_PRODUCTION_ORIGIN }}
           source-repo: ${{ vars.LINK_SOURCE_REPO || github.repository }}
@@ -23,3 +25,4 @@ jobs:
           vercel-token: ${{ secrets.VERCEL_TOKEN }}
           commit: ${{ github.event.pull_request.head.sha }}
           mode: report
+          # pr-comment: 'true'
