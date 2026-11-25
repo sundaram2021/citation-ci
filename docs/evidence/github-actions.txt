@@ -1,8 +1,0 @@
-2026-11-24T11:59:03.3419558Z ℹ tests 22
-2026-11-24T11:59:03.3420474Z ℹ pass 22
-2026-11-24T11:59:03.3420742Z ℹ fail 0
-2026-11-24T11:59:03.6975067Z [regression]  /docs/auth#keys  | live: HTTP 200  | preview: missing HTML anchor  | citations: 1 example
-2026-11-24T11:59:03.9127653Z [pass]  /docs/auth#keys  | live: HTTP 200  | preview: HTTP 200  | citations: 1 example
-2026-11-24T11:59:06.1220021Z [regression]  /auth.html#keys  | live: HTTP 200  | preview: missing HTML anchor  | citations: 1
-2026-11-24T11:59:06.1321750Z ##[error]Process completed with exit code 1.
-2026-11-24T11:59:07.2457499Z [pass]  /auth.html#keys  | live: HTTP 200  | preview: HTTP 200  | citations: 1

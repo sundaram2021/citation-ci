@@ -1,0 +1,25 @@
+name: Published documentation links
+on: pull_request
+permissions:
+  contents: read
+concurrency:
+  group: published-links-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  published-links:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check links published on the default branch
+        uses: sundaram2021/citation-ci@c04fd2410bd37bc59da2cd259b79e45d0d0d47e4
+        with:
+          production: ${{ vars.DOCS_PRODUCTION_ORIGIN }}
+          source-repo: ${{ vars.LINK_SOURCE_REPO || github.repository }}
+          source-path: README.md
+          source-token: ${{ github.token }}
+          vercel-project: ${{ vars.VERCEL_PROJECT_ID }}
+          vercel-team: ${{ vars.VERCEL_TEAM_ID }}
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          commit: ${{ github.event.pull_request.head.sha }}
+          mode: report

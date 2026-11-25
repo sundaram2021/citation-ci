@@ -1,89 +1,40 @@
 # Citation CI
 
-Catch a docs change that breaks a link someone already got from an AI answer. Citation CI compares the exact cited URL on production with the same path, query, and fragment on a deployment preview. The result appears in the GitHub check log and job summary.
+Citation CI checks whether a docs preview breaks links published in a GitHub README or Markdown guide. It compares each URL on production and preview, including its query and HTML anchor. If a working link breaks, the report points to the published file and line.
 
-A docs migration can send `/docs/auth#keys` to the homepage and still return HTTP 200. Citation CI shows the reviewer which destination changed and how many citation observations led there.
+## Run against an existing preview
 
-[Verification report with GitHub Actions logs](docs/verification.md)
-
-## Try it in a minute
-
-Requires Node.js 24 or later and npm. From a checkout:
+From this checkout, use Node.js 24 or later. Set `DOCS_ORIGIN` and `PREVIEW_ORIGIN` to the two site origins (scheme and host, no path), and `SOURCE_REPO` to the `owner/repo` that publishes the links.
 
 ```sh
 npm ci
-npm run demo
+npm run check -- --production "$DOCS_ORIGIN" --preview "$PREVIEW_ORIGIN" \
+  --source-repo "$SOURCE_REPO" --source-path README.md
 ```
 
-The demo starts two temporary local sites and uses one synthetic citation. On its first run the preview redirects the guide to the homepage. The second run corrects the redirect and preserves the section.
+The scan reads the source repo’s default branch. Use a directory as `--source-path` to check several Markdown files. Only absolute links to the production origin are checked. Set `GH_SOURCE_TOKEN` if the repo is private or you hit GitHub’s API limit.
 
-```text
-[regression]  /docs/auth#keys  | live: HTTP 200  | preview: missing HTML anchor  | citations: 1 example
-[pass]  /docs/auth#keys  | live: HTTP 200  | preview: HTTP 200  | citations: 1 example
-```
+Already have a URL list? Replace `--source-repo` and `--source-path` with `--file citations.txt` (one URL per line) or `--file citations.csv` (`url` column required; `engine` and `count` optional). Add `--json` for structured output.
 
-## Check your preview
+## Run on Vercel pull requests
 
-Save a CSV as `citations.csv`. Use absolute URLs on the origin you want to protect. The optional `engine` and `count` columns describe your observations. The default count is one.
+1. Enable Vercel’s Git integration for the docs repo. Production and preview pages must be accessible to the runner without signing in.
+2. Copy [the PR workflow](examples/workflows/vercel-pr.yml) to `.github/workflows/published-links.yml` in your docs repository.
+3. In GitHub Actions settings, add variables `DOCS_PRODUCTION_ORIGIN` and `VERCEL_PROJECT_ID`, plus `VERCEL_TEAM_ID` for a team-owned project. Add `VERCEL_TOKEN` as a secret with access to read deployments.
+4. If the links live in another repo, set `LINK_SOURCE_REPO` to its `owner/repo` and adjust `source-path` in the workflow. For another private repo, pass a token with read access to its contents as `source-token`.
 
-```csv
-url,engine,count
-https://docs.example.com/sdk?version=2#authentication,ChatGPT,3
-https://docs.example.com/quickstart,Perplexity,1
-```
+The workflow waits up to five minutes for the PR’s exact commit to have a ready preview. Open the `published-links` job summary to see findings. The workflow skips fork and Dependabot PRs.
 
-```sh
-npm run check -- --production https://docs.example.com \
-  --preview https://docs-pr-42.example.net --file citations.csv
-```
-
-A plain text file with one URL per line also works. Add `--json` for structured output. When redirecting stdout to a file, use `npm run --silent check -- ... --json` to omit npm's banner.
-
-## Add the GitHub Action
-
-Add the step below to your existing trusted deployment job **after the preview for the current commit is ready**. Replace `steps.deploy.outputs.url` with the URL output from your deployment step. Set the repository variable `DOCS_PRODUCTION_ORIGIN`.
-
-```yaml
-- name: Check AI citations on this preview
-  uses: sundaram2021/citation-ci@dd4a907babfd20808742174633030215f8cb9446
-  with:
-    production: ${{ vars.DOCS_PRODUCTION_ORIGIN }}
-    preview: ${{ steps.deploy.outputs.url }}
-    file: citations.csv
-```
-
-Pin the action to a reviewed commit SHA for production use. Check out the repository containing `citations.csv` before this step. The action needs no GitHub write permissions. A failed step marks its job as failed. Configure that job as a required check to enforce it before merging.
-
-Citations that differ only by fragment share one fetch per redirect hop and one parse of the final HTML per origin. Query strings remain distinct. The checker processes at most four documents at once on each origin.
-
-## Read the result
+## Interpret the result
 
 | Result | Meaning |
 | --- | --- |
-| `pass` | The citation works on both sites. |
-| `fixed` | A previously broken citation works on the preview. |
-| `regression` | The live citation works and the preview fails a destination check. |
-| `pre-existing` | Both destinations already fail a check. |
-| `inconclusive` | At least one destination could not be evaluated reliably. |
+| `regression` | Works on production; broken on preview. |
+| `pre-existing` | Broken on both sites. |
+| `fixed` | Broken on production; works on preview. |
+| `pass` | Works on both sites. |
+| `inconclusive` | At least one site could not be checked reliably. |
 
-Exit code **0** means the comparison completed without a new regression. **1** means at least one new regression. **2** means invalid input, an empty inventory, or an inconclusive comparison with no confirmed regression. The summary lists up to 100 findings and the job log contains all results. Query values are redacted from reported paths.
+The CLI exits **1** for a regression, **2** for a setup error or an inconclusive run without a confirmed regression, and **0** otherwise. The workflow starts in `report` mode: findings appear in the summary, but only setup or execution errors fail the job. Switch to `enforce` to use the CLI exit code as the job result.
 
-### What the checker can establish
-
-- A 204 or 205 serves no document. These responses, a 404 or 410, a redirect loop, or a missing redirect destination break the citation.
-- A deep link redirected to the homepage without a section is flagged. A redirect to a named homepage section must resolve to an existing anchor. A link without a fragment redirected to an ancestor section such as `/docs` is also flagged. This is a review heuristic for pages that may have lost their specific answer.
-- HTML fragment checks use parsed, server-returned HTML. Redirects inherit the original fragment unless the destination supplies another. An explicitly cleared anchor is reported as broken. Client-rendered anchors can require review.
-- The checker decodes HTML using the HTTP charset, defaulting to UTF-8. If the encoding is unsupported or decoding fails, anchors that need the HTML are inconclusive.
-- Timeouts, access restrictions, server errors, cross-origin redirects, text fragments, and oversized HTML produce an inconclusive result. Use the final production hostname as the configured origin.
-- Each pair checks URL health. A page that serves unrelated content with HTTP 200 at its original path can pass. AI ranking, answer accuracy, and future citations need separate measurement.
-
-## Development
-
-```sh
-npm ci
-npm run typecheck
-npm test
-npm run demo
-```
-
-The test suite uses loopback HTTP fixtures. CI runs the composite action against two HTTP fixtures, verifies that removing the cited section fails the check, then restores the section and requires the check to pass.
+Anchor checks use server-returned HTML. A JavaScript-generated anchor may be reported missing; a reachable page can pass even if its content has changed.
