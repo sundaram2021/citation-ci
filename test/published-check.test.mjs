@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtemp, readFile, rm} from 'node:fs/promises';
+import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 
@@ -37,4 +37,24 @@ test('PR check ties a missing preview anchor to the published source, not to the
   const report = await readFile(summary,'utf8');
   assert.ok(report.includes(`<a href="${link}"`)); assert.doesNotMatch(report+p.stdout,/hidden/);
   assert.match(await readFile(output,'utf8'),/comparison-complete=true/);
+});
+
+test('a large job summary only includes complete findings and an omission notice', async t => {
+  const dir = await mkdtemp(join(tmpdir(), 'citation-summary-'));
+  t.after(() => rm(dir, {recursive:true, force:true}));
+  const file = join(dir, 'links.txt'), summary = join(dir, 'summary');
+  const production = 'https://docs.test', preview = 'https://preview.test';
+  const urls = Array.from({length:90}, (_, i) => production + '/guide#' + i + 'a'.repeat(1800));
+  await writeFile(file, urls.join('\n'));
+  const transport = "globalThis.fetch = async () => new Response('<p>Guide</p>', {headers:{'content-type':'text/html'}})";
+  const run = spawnSync(process.execPath, ['--import', 'data:text/javascript,' + encodeURIComponent(transport),
+    'src/cli.ts', '--production', production, '--preview', preview, '--file', file],
+    {encoding:'utf8', env:{...process.env, GITHUB_STEP_SUMMARY:summary}});
+  assert.equal(run.status, 0, run.stderr);
+  const report = await readFile(summary, 'utf8');
+  const entries = report.split('\n').filter(line => line.startsWith('<p>'));
+  assert.ok(entries.length > 0 && entries.length < urls.length);
+  assert.ok(entries.every(line => line.endsWith('</p>')));
+  assert.ok(report.length <= 100000);
+  assert.match(report, /additional findings omitted/i);
 });

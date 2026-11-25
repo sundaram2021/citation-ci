@@ -53,7 +53,7 @@ Anchor checks use server-returned HTML. A JavaScript-generated anchor may be rep
 
 ### Configure site-specific redirects and error pages
 
-A redirect from a document to the homepage is broken even when the homepage reuses the original anchor ID. An explicit redirect to a homepage section (for example, `Location: /#installation`) still checks the replacement anchor.
+An undeclared redirect from a document to the homepage is broken even when the homepage reuses the original anchor ID. An explicit redirect to a homepage section (for example, `Location: /#installation`) still checks the replacement anchor.
 
 For an intentional move to a parent page or a site that serves an error template with HTTP 200, add the relevant inputs under the Action's `with` block:
 
@@ -62,7 +62,7 @@ parent-moves: '{"/manual/chapter":"/manual"}'
 error-page-marker: 'data-template="docs-not-found"'
 ```
 
-The CLI accepts the same values through `--parent-moves` and `--error-page-marker`. Parent moves match the exact source and final path, including query strings and trailing slashes. A match permits the parent redirect and still checks HTTP status and fragments. If an undeclared parent page inherits a fragment, a missing anchor is a regression against a working baseline. A matching ID is inconclusive because the parent may reuse that ID for another section. An explicit redirect to a section on the destination page checks the named anchor normally.
+The CLI accepts the same values through `--parent-moves` and `--error-page-marker`. Parent moves match the exact source and final path, including query strings and trailing slashes. An exact move to the homepage is also supported, for example `{"/old":"/"}`. A match permits the parent redirect and still checks HTTP status and fragments. If an undeclared parent page inherits a fragment, a missing anchor is a regression against a working baseline. A matching ID is inconclusive because the parent may reuse that ID for another section. An explicit redirect to a section on the destination page checks the named anchor normally.
 
 Choose a case-sensitive literal unique to the raw HTML of your error template. When configured, the checker reads HTML on both origins, including pages without a fragment. A matching page is broken. An unreadable HTML body or one larger than 2 MiB is inconclusive. Without a marker, ordinary HTTP 200 pages without fragments keep their status-only check.
 

@@ -44,7 +44,7 @@ async function readHtml(res: Response) {
       chunks.push(value);
     }
     const charset = new MIMEType(res.headers.get('content-type')!).params.get('charset') ?? 'utf-8';
-    return new TextDecoder(charset, { fatal: true }).decode(Buffer.concat(chunks));
+    return new TextDecoder(charset).decode(Buffer.concat(chunks));
   } finally {
     await reader.cancel();
   }
@@ -96,9 +96,9 @@ export async function inspectDocument(citations: URL[], origin: URL, policy: Che
         if (!res.ok) return all('unknown', 'HTTP ' + res.status);
         const landedPath = current.pathname.replace(/\/+$/, '');
         const citedPath = source.pathname.replace(/\/+$/, '');
-        if (current.pathname === '/' && source.pathname !== '/' && !(homepageSectionTargeted && overrideHash))
-          return all('broken', 'redirects to homepage');
         const acceptedParent = policy.parentMoves?.get(source.pathname + source.search) === current.pathname + current.search;
+        if (!acceptedParent && current.pathname === '/' && source.pathname !== '/' && !(homepageSectionTargeted && overrideHash))
+          return all('broken', 'redirects to homepage');
         const undeclaredParent = !acceptedParent && landedPath !== '' && citedPath.startsWith(landedPath + '/');
         const inheritedOnParent = undeclaredParent && explicitFragmentDocument !== current.pathname + current.search;
         const html = /^text\/html(?:\s*;|$)/i.test(res.headers.get('content-type') ?? '');

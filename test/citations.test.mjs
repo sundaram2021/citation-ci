@@ -173,3 +173,19 @@ test('the CLI recognizes a configured soft 404 and accepts an exact parent move'
     });
   } finally { preview.close(); }
 });
+
+test('exact homepage move allows only that destination and still checks fragments', async () => {
+  const paths = ['/home', '/home#okay', '/home#missing'].map(path => new URL(path, origin));
+  const policy = {parentMoves: new Map([['/home', '/']])};
+  const results = await inspectDocument(paths, origin, policy);
+  assert.deepEqual(results.map(r => r.state), ['ok', 'ok', 'broken']);
+  const [other] = await inspectDocument(paths, origin, {parentMoves: new Map([['/home', '/?v=1']])});
+  assert.equal(other.state, 'broken');
+});
+
+test('a malformed UTF-8 byte outside a heading preserves usable anchors', async t => {
+  const body = Buffer.concat([Buffer.from([0xff]), Buffer.from('<h2 id="keys">Keys</h2>')]);
+  t.mock.method(globalThis, 'fetch', async () => new Response(body, {headers:{'content-type':'text/html; charset=utf-8'}}));
+  const urls = ['keys','absent'].map(id => new URL('/docs#' + id, origin));
+  assert.deepEqual((await inspectDocument(urls, origin)).map(r => r.state), ['ok','broken']);
+});
